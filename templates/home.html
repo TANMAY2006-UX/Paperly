@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PAPERLY</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+  <script>
+    // Prevent theme flash before render
+    if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  </script>
+</head>
+<body class="fade-in">
+  <!-- SPLASH SCREEN -->
+  <div id="splash-screen">
+    <div class="animation-container">
+      <svg class="paper-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Background Paper (The Stack) -->
+        <path class="draw-path" d="M40,15 L80,15 L80,70" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" />
+        <!-- Foreground Paper (Research Document) -->
+        <path class="draw-path" d="M20,25 L55,25 L70,40 L70,85 L20,85 Z" stroke-width="3" stroke-linejoin="round" />
+        <!-- Folded Corner Detail -->
+        <path class="draw-path" d="M55,25 L55,40 L70,40" stroke-width="3" stroke-linejoin="round" />
+        <!-- Text Lines -->
+        <path class="draw-path" d="M30,50 L60,50" stroke-width="3" stroke-linecap="round" />
+        <path class="draw-path" d="M30,62 L60,62" stroke-width="3" stroke-linecap="round" />
+        <path class="draw-path" d="M30,74 L45,74" stroke-width="3" stroke-linecap="round" />
+      </svg>
+      <!-- Brand Name -->
+      <h1 class="brand-text">PAPERLY</h1>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- HEADER -->
+    <header class="header">
+      <div class="logo">PAPERLY</div>
+      <div class="header-icons">
+        <button id="theme-toggle" class="icon-btn" aria-label="Toggle dark mode">
+          <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+        <button class="icon-btn" aria-label="User profile">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- HERO -->
+    <section class="hero">
+      <h1 class="hero-title">The Paper Library</h1>
+      <p class="hero-subtitle">Where ideas are meant to be read.</p>
+    </section>
+
+    <!-- SEARCH -->
+    <section class="search-section">
+      <div class="search-bar">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" placeholder="Search papers, topics, authors..." autofocus>
+        <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+          <polyline points="12 5 19 12 12 19"></polyline>
+        </svg>
+      </div>
+      <p class="search-hint">Explore. Understand. Remember.</p>
+    </section>
+
+    <!-- SECTION 1: Browse by Category -->
+    <section class="categories-section">
+      <div class="section-header">
+        <h2>Browse by Category</h2>
+        <a href="#" class="view-all">View all categories &rarr;</a>
+      </div>
+      
+      <div class="rail-wrapper" id="category-rail-wrapper">
+        <div class="rail-mask-left"></div>
+        <div class="rail-mask-right"></div>
+        
+        <button class="rail-btn rail-btn-left" aria-label="Scroll left">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        
+        <div class="categories-rail" id="category-rail">
+          <!-- Card 1 -->
+          <a href="#" class="category-card">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line>
+              </svg>
+            </div>
+            <h3>Artificial Intelligence</h3>
+            <div class="card-count">10 papers</div>
+          </a>
+          <!-- Card 2 -->
+          <a href="#" class="category-card">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+              </svg>
+            </div>
+            <h3>Computer Networks</h3>
+            <div class="card-count">8 papers</div>
+          </a>
+          <!-- Card 3 -->
+          <a href="#" class="category-card">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+              </svg>
+            </div>
+            <h3>Databases</h3>
+            <div class="card-count">8 papers</div>
+          </a>
+          <!-- Card 4 -->
+          <a href="#" class="category-card">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line>
+              </svg>
+            </div>
+            <h3>Systems &amp; OS</h3>
+            <div class="card-count">8 papers</div>
+          </a>
+          <!-- Card 5 -->
+          <a href="#" class="category-card">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle>
+              </svg>
+            </div>
+            <h3>HCI &amp; Design</h3>
+            <div class="card-count">8 papers</div>
+          </a>
+          <!-- Card 6 -->
+          <a href="#" class="category-card">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+              </svg>
+            </div>
+            <h3>Personal Collection</h3>
+            <div class="card-count">5 papers</div>
+          </a>
+        </div>
+
+        <button class="rail-btn rail-btn-right" aria-label="Scroll right">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </div>
+    </section>
+
+    <!-- SECTION 2: Most Read Papers -->
+    <section class="papers-section">
+      <div class="section-header">
+        <h2>Most Read Papers</h2>
+        <a href="#" class="view-all">View all papers &rarr;</a>
+      </div>
+      <div class="papers-list">
+        <!-- Paper 1 -->
+        <a href="#" class="paper-row">
+          <div class="paper-number">01</div>
+          <div class="paper-info">
+            <h3>Attention Is All You Need</h3>
+            <p>Ashish Vaswani, Noam Shazeer, Niki Parmar, et al.</p>
+          </div>
+          <div class="paper-meta">
+            <span>2017</span>
+            <span>18 min read</span>
+            <button class="bookmark-btn" aria-label="Bookmark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </button>
+          </div>
+        </a>
+        <!-- Paper 2 -->
+        <a href="#" class="paper-row">
+          <div class="paper-number">02</div>
+          <div class="paper-info">
+            <h3>BERT: Pre-training of Deep Bidirectional Transformers</h3>
+            <p>Jacob Devlin, Ming-Wei Chang, Kenton Lee, et al.</p>
+          </div>
+          <div class="paper-meta">
+            <span>2018</span>
+            <span>22 min read</span>
+            <button class="bookmark-btn" aria-label="Bookmark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </button>
+          </div>
+        </a>
+        <!-- Paper 3 -->
+        <a href="#" class="paper-row">
+          <div class="paper-number">03</div>
+          <div class="paper-info">
+            <h3>Language Models are Few-Shot Learners (GPT-3)</h3>
+            <p>Tom B. Brown, Benjamin Mann, Nick Ryder, et al.</p>
+          </div>
+          <div class="paper-meta">
+            <span>2020</span>
+            <span>27 min read</span>
+            <button class="bookmark-btn" aria-label="Bookmark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </button>
+          </div>
+        </a>
+        <!-- Paper 4 -->
+        <a href="#" class="paper-row">
+          <div class="paper-number">04</div>
+          <div class="paper-info">
+            <h3>BigTable: A Distributed Storage System for Structured Data</h3>
+            <p>Fay Chang, Jeffrey Dean, Sanjay Ghemawat, et al.</p>
+          </div>
+          <div class="paper-meta">
+            <span>2006</span>
+            <span>16 min read</span>
+            <button class="bookmark-btn" aria-label="Bookmark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </button>
+          </div>
+        </a>
+        <!-- Paper 5 -->
+        <a href="#" class="paper-row">
+          <div class="paper-number">05</div>
+          <div class="paper-info">
+            <h3>MapReduce: Simplified Data Processing on Large Clusters</h3>
+            <p>Jeffrey Dean, Sanjay Ghemawat</p>
+          </div>
+          <div class="paper-meta">
+            <span>2004</span>
+            <span>14 min read</span>
+            <button class="bookmark-btn" aria-label="Bookmark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </button>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- QUOTE SECTION -->
+    <section class="quote-section">
+      <div class="quote-container" id="quote-container">
+        <span class="quote-mark">“</span>
+        <div class="quote-content" id="quote-content">
+          <p class="quote-text">What I cannot create, I do not understand.</p>
+          <p class="quote-author">— Richard Feynman</p>
+        </div>
+      </div>
+      <div class="quote-dots" id="quote-dots">
+        <span data-index="0" class="active"></span>
+        <span data-index="1"></span>
+        <span data-index="2"></span>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <div class="footer-top">
+        <h3 class="footer-brand">PAPERLY</h3>
+        <p class="footer-manifesto">Built for people who still enjoy reading ideas slowly.</p>
+      </div>
+      <div class="footer-bottom">
+        <div class="footer-copyright">
+          &copy; 2026 Paperly. All rights reserved.
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // 1. Splash Screen Logic
+      const splashScreen = document.getElementById('splash-screen');
+      const hasVisited = sessionStorage.getItem('hasVisitedSplash');
+      
+      if (hasVisited) {
+        // Skip splash entirely for returning users
+        splashScreen.classList.add('skip');
+      } else {
+        // Show splash, then fade out and save state
+        setTimeout(() => {
+          splashScreen.classList.add('hidden');
+          sessionStorage.setItem('hasVisitedSplash', 'true');
+        }, 3500); // 1.5s draw + 1s text fade + 1s buffer
+      }
+
+      // 2. Dark Mode Toggle
+      const themeToggle = document.getElementById('theme-toggle');
+      const root = document.documentElement;
+      
+      const updateIcon = (isDark) => {
+        themeToggle.innerHTML = isDark ? 
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>' : 
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+      };
+
+      updateIcon(root.getAttribute('data-theme') === 'dark');
+
+      themeToggle.addEventListener('click', () => {
+        const isDark = root.getAttribute('data-theme') === 'dark';
+        if (isDark) {
+          root.removeAttribute('data-theme');
+          localStorage.setItem('theme', 'light');
+          updateIcon(false);
+        } else {
+          root.setAttribute('data-theme', 'dark');
+          localStorage.setItem('theme', 'dark');
+          updateIcon(true);
+        }
+      });
+
+      // 3. Category Rail Scroll Logic
+      const rail = document.getElementById('category-rail');
+      const wrapper = document.getElementById('category-rail-wrapper');
+      const btnLeft = document.querySelector('.rail-btn-left');
+      const btnRight = document.querySelector('.rail-btn-right');
+
+      const updateRailState = () => {
+        const canScrollLeft = rail.scrollLeft > 0;
+        const canScrollRight = Math.ceil(rail.scrollLeft) < (rail.scrollWidth - rail.clientWidth);
+        
+        wrapper.classList.toggle('can-scroll-left', canScrollLeft);
+        wrapper.classList.toggle('can-scroll-right', canScrollRight);
+        
+        btnLeft.classList.toggle('can-scroll', canScrollLeft);
+        btnRight.classList.toggle('can-scroll', canScrollRight);
+      };
+
+      rail.addEventListener('scroll', updateRailState);
+      window.addEventListener('resize', updateRailState);
+      
+      btnLeft.addEventListener('click', () => {
+        rail.scrollBy({ left: -300, behavior: 'smooth' });
+      });
+      
+      btnRight.addEventListener('click', () => {
+        rail.scrollBy({ left: 300, behavior: 'smooth' });
+      });
+
+      setTimeout(updateRailState, 100);
+
+      // 4. Quote of the Day Logic
+      const quotes = [
+        { text: "What I cannot create, I do not understand.", author: "Richard Feynman" },
+        { text: "Computer science is no more about computers than astronomy is about telescopes.", author: "Edsger W. Dijkstra" },
+        { text: "The most profoundly disruptive technologies are the ones that disappear.", author: "Mark Weiser" }
+      ];
+      
+      let currentQuoteIndex = 0;
+      const quoteContent = document.getElementById('quote-content');
+      const quoteDots = document.querySelectorAll('#quote-dots span');
+      
+      const transitionQuote = (newIndex) => {
+        if (newIndex === currentQuoteIndex) return;
+        
+        quoteDots[currentQuoteIndex].classList.remove('active');
+        currentQuoteIndex = newIndex;
+        quoteDots[currentQuoteIndex].classList.add('active');
+        
+        quoteContent.classList.add('fade-out');
+        
+        setTimeout(() => {
+          quoteContent.innerHTML = `
+            <p class="quote-text">${quotes[currentQuoteIndex].text}</p>
+            <p class="quote-author">— ${quotes[currentQuoteIndex].author}</p>
+          `;
+          quoteContent.classList.remove('fade-out');
+        }, 400); // Wait for CSS transition (opacity 0)
+      };
+
+      quoteDots.forEach((dot, index) => {
+        dot.addEventListener('click', () => {
+          transitionQuote(index);
+          // Reset interval when user manually clicks
+          clearInterval(quoteInterval);
+          quoteInterval = setInterval(autoRotateQuote, 8000);
+        });
+      });
+
+      const autoRotateQuote = () => {
+        const nextIndex = (currentQuoteIndex + 1) % quotes.length;
+        transitionQuote(nextIndex);
+      };
+      
+      let quoteInterval = setInterval(autoRotateQuote, 8000);
+    });
+  </script>
+</body>
+</html>

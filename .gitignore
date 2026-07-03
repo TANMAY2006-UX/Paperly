@@ -1,0 +1,54 @@
+# ==========================================
+# Python
+# ==========================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual Environment
+venv/
+.env
+.env.*
+
+# ==========================================
+# Database
+# ==========================================
+*.db
+*.sqlite
+*.sqlite3
+
+# ==========================================
+# Temporary / OS files
+# ==========================================
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# Research assets (keep outside repo)
+# ==========================================
+*.pdf
+*.txt
+
+# ==========================================
+# Documentation & planning files
+# ==========================================
+# Ignore only planning documents
+implementation_plan*.md
+Phase_*.md
+phase*.md
+reader_editorial_review.md
+re_implementation_plan.md
+phase2_*.md
+v1_implementation_plan.md
+
+# ==========================================
+# Root-level helper scripts
+# (keep actual application code only)
+# ==========================================
+apply_editorial_corrections.py
+apply_v1_fixes.py
+convert.py
+extract_spanner.py
+update_css.py
+validate_json.py

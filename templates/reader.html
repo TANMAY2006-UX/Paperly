@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ paper.title }} - PAPERLY</title>
+    <!-- Fonts -->
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap">
+    <!-- KaTeX CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <!-- Base styles and reader styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/reader.css') }}">
+
+    <script>
+        // Apply theme and font size immediately to prevent FOUC
+        const savedTheme = localStorage.getItem('reader_theme') || 'theme-paper';
+        const savedFontSize = localStorage.getItem('reader_font_size') || '18px';
+        document.documentElement.className = savedTheme;
+        document.documentElement.style.setProperty('--reading-font-size', savedFontSize);
+    </script>
+</head>
+
+<body class="reader-body" data-total-words="{{ paper.total_word_count }}">
+
+    <!-- Floating Mobile TOC Trigger -->
+    <button id="mobile-toc-trigger" class="mobile-toc-btn" aria-label="Open Sections">
+        § Sections
+    </button>
+
+    <div class="reader-layout">
+        <!-- Left: Collapsible TOC -->
+        <aside class="reader-toc" id="toc-sidebar">
+            <div class="toc-header">
+                <button id="toc-toggle" class="toc-toggle-btn surface-control" aria-label="Toggle Table of Contents">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-icon lucide-list"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg>
+                </button>
+            </div>
+
+            <nav class="toc-nav">
+                <h3 class="toc-paper-title">{{ paper.title }}</h3>
+                <ul class="toc-list">
+                    {% for section in paper.sections %}
+                    {% if not section.hidden_in_focus_mode or section.title == 'Abstract' %}
+                    <li class="toc-item level-{{ section.data_level }} {% if section.data_level > 1 %}toc-hidden{% endif %}"
+                        data-level="{{ section.data_level }}"
+                        data-parent="{{ section.parent_id or '' }}">
+                        <a class="toc-link" data-target="{{ section.id }}" tabindex="0">
+                            {% if section.has_children %}
+                            <button class="toc-expand-btn" aria-label="Expand section" tabindex="-1">▸</button>
+                            {% endif %}
+                            {% if section.number %}
+                            <span class="toc-number">{{ section.number }}</span>
+                            {% endif %}
+                            <span class="toc-title">{{ section.title }}</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+                    <li class="toc-item level-1">
+                        <a class="toc-link" data-target="references" tabindex="0">
+                            <span class="toc-title">References</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <div class="toc-resizer" id="toc-resizer"></div>
+        </aside>
+
+
+        <!-- Center: Reading Content -->
+        <main class="reader-content">
+            <article class="paper-container">
+                <!-- Paper Head -->
+                <header class="paper-head" id="section-head">
+                    <h1 class="paper-title">{{ paper.title }}</h1>
+                    <div class="paper-authors">{{ paper.authors | join(' &middot; ') | safe }}</div>
+                    <div class="paper-meta">
+                        <span>{{ paper.year }}</span> &middot;
+                        <span>{{ paper.venue }}</span> &middot;
+                        <span>{{ paper.reading_time_minutes }} min read</span>
+                        {% if paper.doi %}
+                        &middot; <a href="https://doi.org/{{ paper.doi }}" class="paper-doi">DOI ↗</a>
+                        {% endif %}
+                    </div>
+                </header>
+
+                <div class="paper-body">
+                    {% for section in paper.sections %}
+                    <section id="{{ section.id }}"
+                        class="paper-section{% if section.title == 'Abstract' %} paper-abstract{% endif %}"
+                        data-level="{{ section.data_level }}"
+                        data-words="{{ section.word_count }}">
+                        {% if section.title and section.title != 'Abstract' %}
+                        <h2 class="section-title">
+                            {% if section.number %}<span class="section-number">{{ section.number }}</span>{% endif %}
+                            {{ section.title }}
+                        </h2>
+                        {% elif section.title == 'Abstract' %}
+                        <h2 class="section-title">Abstract</h2>
+                        {% endif %}
+
+                        <div class="section-content">
+                            {{ section.content | render_figures(paper.figures) | safe }}
+                        </div>
+                    </section>
+                    {% endfor %}
+
+                    <!-- References -->
+                    {% if paper.structured_references %}
+                    <section id="references" class="paper-section paper-references">
+                        <h2 class="section-title">References</h2>
+                        <div id="references-list" class="references-list">
+                            <ul>
+                                {% for ref in paper.structured_references %}
+                                <li id="{{ ref.id }}" class="reference-item">
+                                    <span class="ref-badge">[{{ ref.number }}]</span>
+                                    <span class="ref-text">{{ ref.text }}</span>
+                                    {% if ref.url %}
+                                    <a href="{{ ref.url }}" target="_blank" class="ref-link">↗</a>
+                                    {% endif %}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </section>
+                    {% endif %}
+                </div>
+            </article>
+        </main>
+
+        <!-- Bottom Right Interaction Cluster -->
+        <div class="reader-controls">
+            <!-- Reading Dock -->
+            <div class="reading-dock" id="reading-dock">
+                <div id="reading-dock-menu" class="reading-dock-menu hidden">
+                    <div class="dock-section">
+                        <span class="dock-label">Typography</span>
+                        <div class="dock-btn-group">
+                            <button class="dock-btn" id="font-decrease">A−</button>
+                            <button class="dock-btn" id="font-reset">Reset</button>
+                            <button class="dock-btn" id="font-increase">A+</button>
+                        </div>
+                    </div>
+                    <div class="dock-section">
+                        <span class="dock-label">Theme</span>
+                        <div class="dock-btn-group">
+                            <button class="dock-btn theme-btn" data-theme="theme-light">Light</button>
+                            <button class="dock-btn theme-btn" data-theme="theme-paper">Warm</button>
+                            <button class="dock-btn theme-btn" data-theme="theme-dark">Dark</button>
+                        </div>
+                    </div>
+                    <div class="dock-section">
+                        <span class="dock-label">Reading Mode</span>
+                        <div class="dock-btn-group">
+                            <button class="dock-btn mode-btn active" data-mode="scroll">Scroll</button>
+                            <button class="dock-btn mode-btn" data-mode="focus">Focus</button>
+                        </div>
+                    </div>
+                </div>
+                <button id="reading-dock-trigger" class="reading-dock-trigger surface-control" aria-label="Reading Preferences">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-case-sensitive-icon lucide-case-sensitive"><path d="m2 16 4.039-9.69a.5.5 0 0 1 .923 0L11 16"/><path d="M22 9v7"/><path d="M3.304 13h6.392"/><circle cx="18.5" cy="12.5" r="3.5"/></svg>
+                </button>
+            </div>
+
+            <!-- Visuals Drawer -->
+            <div class="visuals-container">
+                <button id="visuals-trigger" class="visuals-trigger-btn surface-control" aria-label="Open Visuals Drawer">
+                    <svg class="icon-closed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
+                      <rect width="18" height="18" x="3" y="3" rx="2"/>
+                      <path d="M15 3v18"/>
+                      <path d="m10 15-3-3 3-3"/>
+                    </svg>
+                    <svg class="icon-open hidden" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
+                      <rect width="18" height="18" x="3" y="3" rx="2"/>
+                      <path d="M15 3v18"/>
+                      <path d="m8 9 3 3-3 3"/>
+                    </svg>
+                </button>
+                <div id="visuals-drawer" class="visuals-drawer hidden">
+                    <div class="visuals-drawer-header">
+                        <h3>VISUALS {% if paper.visuals %}({{ paper.visuals|length }}){% endif %}</h3>
+                    </div>
+                    <ul class="visuals-list">
+                        {% for visual in paper.visuals %}
+                        <li class="visual-item">
+                            <a class="visual-link" data-target="{{ visual.id }}" tabindex="0" style="width: 100%; box-sizing: border-box;">
+                                <div class="visual-preview">
+                                    {% if visual.type == 'figure' %}
+                                        {% if visual.image_path %}
+                                            <img src="/static/{{ visual.image_path | replace('static/', '') }}" alt="Figure Preview">
+                                        {% else %}
+                                            <div class="visual-placeholder-image"></div>
+                                        {% endif %}
+                                    {% elif visual.type == 'table' %}
+                                        {% if visual.preview_html %}
+                                            {{ visual.preview_html | safe }}
+                                        {% else %}
+                                            <div class="visual-symbol-table">▤</div>
+                                        {% endif %}
+                                    {% else %}
+                                        <div class="visual-symbol-table">▤</div>
+                                    {% endif %}
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 2px; width: 100%;">
+                                    <span class="visual-title" style="display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; font-size: 0.85rem; color: var(--text-primary);">{{ visual.title }}</span>
+                                    {% if visual.caption %}
+                                    <span class="visual-caption" style="display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.75rem; color: var(--text-secondary);">{{ visual.caption }}</span>
+                                    {% endif %}
+                                </div>
+                            </a>
+                        </li>
+                        {% endfor %}
+                        {% if not paper.visuals %}
+                        <li class="visual-empty">No visuals found.</li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Back to Top Button -->
+        <button id="back-to-top" class="back-to-top surface-control hidden" aria-label="Back to Top">
+            ↑
+        </button>
+        
+        <!-- Reserved for Book Mode Pagination -->
+        <div id="book-mode-pagination-reserved"></div>
+    </div>
+
+
+    <!-- Figure Lightbox Overlay -->
+    <div id="lightbox-overlay" class="lightbox-overlay hidden" role="dialog" aria-modal="true"
+        aria-label="Figure lightbox">
+        <button class="lightbox-close" aria-label="Close lightbox">✕</button>
+        <div class="lightbox-nav">
+            <button class="lightbox-prev" aria-label="Previous figure">←</button>
+            <button class="lightbox-next" aria-label="Next figure">→</button>
+        </div>
+        <div class="lightbox-content">
+            <img src="" alt="" id="lightbox-img">
+            <p id="lightbox-caption"></p>
+            <div id="lightbox-counter" class="lightbox-counter"></div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+
+
+    <!-- KaTeX JS -->
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false}
+                ],
+                throwOnError: false
+            });"></script>
+
+    <!-- Reader Logic -->
+    <script src="{{ url_for('static', filename='js/reader.js') }}"></script>
+    <!-- Expose paper slug to JS -->
+    <script>window.PAPER_SLUG = "{{ paper.id }}";</script>
+    
+    <!-- Progress Whisper -->
+    <div class="progress-whisper" id="progress-whisper"></div>
+
+    <!-- Expose citations for hover cards -->
+    {% if paper.structured_references %}
+    <script type="application/json" id="citation-data">
+        {{ paper.structured_references | tojson | safe }}
+    </script>
+    {% endif %}
+</body>
+
+</html>
