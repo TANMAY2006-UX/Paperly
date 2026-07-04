@@ -52,3 +52,12 @@ convert.py
 extract_spanner.py
 update_css.py
 validate_json.py
+
+
+debug_output/
+
+docs/
+
+papers_pdf/
+
+validation_data.json
