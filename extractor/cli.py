@@ -8,6 +8,10 @@ from extractor.publishers import detect_publisher
 from extractor.layout import detect_layout
 from extractor.consensus import detect_consensus
 from extractor.debug import draw_debug_overlays
+from extractor.ordering import compute_reading_order
+from extractor.preprocess import assemble_typographic_groups
+from extractor.landmarks import detect_landmarks
+from extractor.models import AssemblyPolicy, ParticipationPolicy
 
 def cmd_inspect(args):
     print(f"Inspecting: {args.pdf_path}")
@@ -91,6 +95,86 @@ def cmd_detect(args):
         print(f"  Primary Gutter: {context.document_layout.primary_split_x}")
         print(f"  Anomaly Pages: {context.document_layout.anomaly_pages}")
 
+def cmd_assemble(args):
+    print(f"Stage 1 Typographic Assembly for: {args.pdf_path}")
+    slug = os.path.splitext(os.path.basename(args.pdf_path))[0]
+    
+    context = ingest_pdf(args.pdf_path, slug)
+    context = normalize_context(context)
+    context = detect_publisher(context)
+    context = detect_layout(context)
+    context = detect_consensus(context)
+    
+    ordered_blocks = compute_reading_order(context)
+    
+    policy = AssemblyPolicy.CONSERVATIVE
+    if getattr(args, 'balanced', False):
+        policy = AssemblyPolicy.BALANCED
+    elif getattr(args, 'aggressive', False):
+        policy = AssemblyPolicy.AGGRESSIVE
+        
+    context = assemble_typographic_groups(ordered_blocks, context, policy=policy)
+    
+    report = context.quality_reports.get("Stage1_Assembly")
+    if report:
+        print("\nStage 1 Quality Report:")
+        print(f"  Raw Blocks: {report.raw_block_count}")
+        print(f"  Participating: {report.participating_blocks}")
+        print(f"  Ignored: {report.ignored_blocks}")
+        print(f"  Assembled Groups: {report.assembled_groups}")
+        print(f"  Fragmentation Ratio: {report.fragmentation_ratio:.2f}")
+        print(f"  Average Confidence: {report.average_confidence:.2f}")
+        if report.warnings:
+            print("  Warnings:")
+            for w in report.warnings:
+                print(f"    - {w}")
+
+def cmd_landmarks(args):
+    print(f"Stage 3A.2 Landmark Detection for: {args.pdf_path}")
+    slug = os.path.splitext(os.path.basename(args.pdf_path))[0]
+    
+    context = ingest_pdf(args.pdf_path, slug)
+    
+    inspector = None
+    if getattr(args, 'telemetry', False) or getattr(args, 'telemetry_json', False) or getattr(args, 'trace_group', None):
+        from extractor.telemetry import EventBus
+        from extractor.inspector import Inspector
+        context.event_bus = EventBus()
+        context.telemetry_enabled = True
+        inspector = Inspector()
+        context.event_bus.subscribe(inspector.receive)
+        
+    context = normalize_context(context)
+    context = detect_publisher(context)
+    context = detect_layout(context)
+    context = detect_consensus(context)
+    
+    ordered_blocks = compute_reading_order(context)
+    context = assemble_typographic_groups(ordered_blocks, context)
+    
+    context = detect_landmarks(context)
+    
+    report = context.landmark_report
+    if report:
+        print(f"\nDetected {len(report.fences)} Structural Fences:")
+        for f in report.fences:
+            print(f"  [{f.fence_type.name}] conf={f.confidence_score:.2f} ({f.confidence_strength.name}) evidence={f.dominant_category.name}")
+            
+        print(f"\nDetected {len(report.anchors)} Document Anchors:")
+        for a in report.anchors:
+            print(f"  [{a.anchor_type.name}] conf={a.confidence_score:.2f} ({a.confidence_strength.name}) evidence={a.dominant_category.name}")
+            
+        print(f"\nAverage Confidence: {report.average_confidence:.2f}")
+
+    if inspector:
+        print("\n")
+        if getattr(args, 'telemetry_json', False):
+            print(inspector.export_json())
+        elif getattr(args, 'trace_group', None):
+            inspector.print_group_trace(args.trace_group)
+        else:
+            inspector.print_report()
+
 def cmd_debug(args):
     print(f"Generating Debug PDF for: {args.pdf_path}")
     slug = os.path.splitext(os.path.basename(args.pdf_path))[0]
@@ -101,14 +185,26 @@ def cmd_debug(args):
     context = detect_layout(context)
     context = detect_consensus(context)
     
+    if args.groups or args.landmarks:
+        print("\nStage 1: Assembling groups for debug visualization...")
+        ordered_blocks = compute_reading_order(context)
+        context = assemble_typographic_groups(ordered_blocks, context)
+        
+    if args.landmarks:
+        print("\nStage 3A.2: Detecting landmarks for debug visualization...")
+        context = detect_landmarks(context)
+    
     print("\nStage 5: Generating Debug PDF...")
-    context = draw_debug_overlays(context)
+    context = draw_debug_overlays(context, visualize_groups=args.groups or args.landmarks, visualize_landmarks=args.landmarks)
     
     debug_log = next(log for log in reversed(context.audit_log) if log["action"] == "generate_debug_pdf")
     print(f"  Success: {debug_log.get('output_path')}")
 
 def main():
     parser = argparse.ArgumentParser(description="Paperly Phase 3A.0 Extraction Pipeline")
+    parser.add_argument("--telemetry", action="store_true", help="Enable telemetry and print inspector report")
+    parser.add_argument("--telemetry-json", action="store_true", help="Enable telemetry and print trace as JSON")
+    parser.add_argument("--trace-group", type=str, help="Print trace for a specific group ID")
     subparsers = parser.add_subparsers(dest="command", required=True)
     
     # inspect
@@ -122,6 +218,18 @@ def main():
     # debug
     debug_parser = subparsers.add_parser("debug", help="Produce a debug PDF with visual overlays")
     debug_parser.add_argument("pdf_path", help="Path to the PDF file")
+    debug_parser.add_argument("--groups", action="store_true", help="Visualize assembled TypographicGroups instead of raw blocks")
+    debug_parser.add_argument("--landmarks", action="store_true", help="Visualize Structural Fences and Document Anchors")
+    
+    # assemble
+    assemble_parser = subparsers.add_parser("assemble", help="Run Stage 1 Typographic Assembly")
+    assemble_parser.add_argument("pdf_path", help="Path to the PDF file")
+    assemble_parser.add_argument("--balanced", action="store_true", help="Use Balanced policy")
+    assemble_parser.add_argument("--aggressive", action="store_true", help="Use Aggressive policy")
+    
+    # landmarks
+    landmarks_parser = subparsers.add_parser("landmarks", help="Run Stage 3A.2 Landmark Detection")
+    landmarks_parser.add_argument("pdf_path", help="Path to the PDF file")
     
     args = parser.parse_args()
     
@@ -135,3 +243,10 @@ def main():
         cmd_detect(args)
     elif args.command == "debug":
         cmd_debug(args)
+    elif args.command == "assemble":
+        cmd_assemble(args)
+    elif args.command == "landmarks":
+        cmd_landmarks(args)
+
+if __name__ == "__main__":
+    main()

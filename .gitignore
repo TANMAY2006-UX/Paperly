@@ -36,7 +36,6 @@ Thumbs.db
 # Ignore only planning documents
 implementation_plan*.md
 Phase_*.md
-phase*.md
 reader_editorial_review.md
 re_implementation_plan.md
 phase2_*.md
@@ -61,3 +60,7 @@ docs/
 papers_pdf/
 
 validation_data.json
+
+baseline/
+scratch/
+test_baseline/

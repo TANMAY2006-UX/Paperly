@@ -69,7 +69,14 @@ def detect_layout(context: ExtractionContext) -> ExtractionContext:
         valid_blocks = [b for b in p.blocks if len(b.text.strip()) >= 10]
         
         if not valid_blocks:
-            p.layout = LayoutProfile(column_count=prior_expected_columns)
+            p.layout = LayoutProfile(
+                column_count=prior_expected_columns,
+                header_zone_y=global_header_zone_y,
+                footer_zone_y=global_footer_zone_y,
+                left_margin=0.0,
+                right_margin=1.0,
+                confidence=0.0
+            )
             continue
             
         x0_positions = [b.x0 for b in valid_blocks]

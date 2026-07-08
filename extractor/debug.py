@@ -2,13 +2,19 @@ import os
 import fitz
 from extractor.models import ExtractionContext, DocumentLayoutKind, BlockType
 
-def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_output") -> ExtractionContext:
+def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_output", visualize_groups: bool = False, visualize_landmarks: bool = False) -> ExtractionContext:
     """
-    Stage 5: Debug Rendering
+    Stage 5/Debug: Debug Rendering
     Generates a debug PDF with visual overlays to validate geometric algorithms.
     """
     os.makedirs(output_dir, exist_ok=True)
-    out_path = os.path.join(output_dir, f"{context.slug}_debug.pdf")
+    if visualize_landmarks:
+        out_name = f"{context.slug}_landmarks_debug.pdf"
+    elif visualize_groups:
+        out_name = f"{context.slug}_groups_debug.pdf"
+    else:
+        out_name = f"{context.slug}_debug.pdf"
+    out_path = os.path.join(output_dir, out_name)
     
     doc = fitz.open(context.pdf_path)
     
@@ -16,30 +22,62 @@ def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_out
         page = doc[p.page_num]
         layout = p.layout
         
-        # 1. Draw Text Blocks
-        for b in p.blocks:
-            x0 = b.x0 * p.width
-            y0 = b.y0 * p.height
-            x1 = b.x1 * p.width
-            y1 = b.y1 * p.height
-            rect = fitz.Rect(x0, y0, x1, y1)
-            
-            is_noise = b.block_type == BlockType.NOISE
-            is_spanning = b.spans_columns
-            
-            color = (0.5, 0.5, 0.5)  
-            
-            if not is_noise:
-                if is_spanning:
-                    color = (0.5, 0, 0.5)  # Purple
-                else:
-                    split_x = context.document_layout.primary_split_x if (context.document_layout and context.document_layout.primary_split_x) else (layout.column_split_x if layout.column_split_x else 0.5)
-                    if b.x0 < split_x:
-                        color = (0, 0.8, 0)  # Green
+        # 1. Draw Text Blocks or Typographic Groups
+        if visualize_groups and hasattr(context, 'assembled_groups') and context.assembled_groups:
+            page_groups = [g for g in context.assembled_groups if g.source_blocks and g.source_blocks[0].page_num == p.page_num]
+            for g in page_groups:
+                x0 = g.x0 * p.width
+                y0 = g.y0 * p.height
+                x1 = g.x1 * p.width
+                y1 = g.y1 * p.height
+                rect = fitz.Rect(x0, y0, x1, y1)
+                
+                # Draw group box in orange
+                page.draw_rect(rect, color=(1, 0.5, 0), width=2.0)
+                
+                # If visualizing landmarks, draw landmarks on top
+                if visualize_landmarks and context.landmark_report:
+                    matched_fence = next((f for f in context.landmark_report.fences if g.group_id in f.group_ids), None)
+                    matched_anchor = next((a for a in context.landmark_report.anchors if g.group_id in a.group_ids), None)
+                    
+                    if matched_fence:
+                        page.draw_rect(rect, color=(1, 0, 0), fill=(1, 0, 0), fill_opacity=0.2, width=3.0)
+                        lbl = f"{matched_fence.fence_type.name} ({matched_fence.confidence_score:.2f} {matched_fence.dominant_category.name})"
+                        page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), lbl, fontsize=8, color=(1, 0, 0))
+                    elif matched_anchor:
+                        page.draw_rect(rect, color=(0, 0.5, 1), fill=(0, 0.5, 1), fill_opacity=0.2, width=3.0)
+                        lbl = f"{matched_anchor.anchor_type.name} ({matched_anchor.confidence_score:.2f} {matched_anchor.dominant_category.name})"
+                        page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), lbl, fontsize=8, color=(0, 0.5, 1))
                     else:
-                        color = (0, 0, 0.8)  # Blue
-                        
-            page.draw_rect(rect, color=color, width=1.5)
+                        conf_str = f"{g.evidence_vector.total_confidence:.2f}"
+                        page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), f"{g.group_id} ({conf_str})", fontsize=6, color=(1, 0.5, 0))
+                else:
+                    conf_str = f"{g.evidence_vector.total_confidence:.2f}"
+                    page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), f"{g.group_id} ({conf_str})", fontsize=6, color=(1, 0.5, 0))
+        else:
+            for b in p.blocks:
+                x0 = b.x0 * p.width
+                y0 = b.y0 * p.height
+                x1 = b.x1 * p.width
+                y1 = b.y1 * p.height
+                rect = fitz.Rect(x0, y0, x1, y1)
+                
+                is_noise = b.block_type == BlockType.NOISE
+                is_spanning = b.spans_columns
+                
+                color = (0.5, 0.5, 0.5)  
+                
+                if not is_noise:
+                    if is_spanning:
+                        color = (0.5, 0, 0.5)  # Purple
+                    else:
+                        split_x = context.document_layout.primary_split_x if (context.document_layout and context.document_layout.primary_split_x) else (layout.column_split_x if layout.column_split_x else 0.5)
+                        if b.x0 < split_x:
+                            color = (0, 0.8, 0)  # Green
+                        else:
+                            color = (0, 0, 0.8)  # Blue
+                            
+                page.draw_rect(rect, color=color, width=1.5)
             
         # 2. Draw Header/Footer Zones
         header_y = layout.header_zone_y * p.height
