@@ -11,6 +11,8 @@ from extractor.debug import draw_debug_overlays
 from extractor.ordering import compute_reading_order
 from extractor.preprocess import assemble_typographic_groups
 from extractor.landmarks import detect_landmarks
+from extractor.zones import partition_zones
+from extractor.semantic import reconstruct_semantics
 from extractor.models import AssemblyPolicy, ParticipationPolicy
 
 def cmd_inspect(args):
@@ -175,6 +177,46 @@ def cmd_landmarks(args):
         else:
             inspector.print_report()
 
+def cmd_zones(args):
+    print(f"Stage 3A.2 Zonal Partitioning for: {args.pdf_path}")
+    slug = os.path.splitext(os.path.basename(args.pdf_path))[0]
+    
+    context = ingest_pdf(args.pdf_path, slug)
+    
+    inspector = None
+    if getattr(args, 'telemetry', False) or getattr(args, 'telemetry_json', False) or getattr(args, 'trace_group', None):
+        from extractor.telemetry import EventBus
+        from extractor.inspector import Inspector
+        context.event_bus = EventBus()
+        context.telemetry_enabled = True
+        inspector = Inspector()
+        context.event_bus.subscribe(inspector.receive)
+        
+    context = normalize_context(context)
+    context = detect_publisher(context)
+    context = detect_layout(context)
+    context = detect_consensus(context)
+    
+    ordered_blocks = compute_reading_order(context)
+    context = assemble_typographic_groups(ordered_blocks, context)
+    context = detect_landmarks(context)
+    context = partition_zones(context)
+    
+    part = context.zonal_partition
+    if part:
+        print(f"\nDocument partitioned into {len(part.zones)} zones:")
+        for i, z in enumerate(part.zones):
+            print(f"  Zone {i}: {z.zone_type.name} (Groups {z.start_index} to {z.end_index - 1}, count={len(z.groups)})")
+            
+    if inspector:
+        print("\n")
+        if getattr(args, 'telemetry_json', False):
+            print(inspector.export_json())
+        elif getattr(args, 'trace_group', None):
+            inspector.print_group_trace(args.trace_group)
+        else:
+            inspector.print_report()
+
 def cmd_debug(args):
     print(f"Generating Debug PDF for: {args.pdf_path}")
     slug = os.path.splitext(os.path.basename(args.pdf_path))[0]
@@ -185,20 +227,72 @@ def cmd_debug(args):
     context = detect_layout(context)
     context = detect_consensus(context)
     
-    if args.groups or args.landmarks:
+    if args.groups or args.landmarks or args.zones or args.semantic:
         print("\nStage 1: Assembling groups for debug visualization...")
         ordered_blocks = compute_reading_order(context)
         context = assemble_typographic_groups(ordered_blocks, context)
         
-    if args.landmarks:
+    if args.landmarks or args.zones or args.semantic:
         print("\nStage 3A.2: Detecting landmarks for debug visualization...")
         context = detect_landmarks(context)
+        
+    if args.zones or args.semantic:
+        print("\nStage 3A.2: Partitioning zones for debug visualization...")
+        context = partition_zones(context)
+
+    if args.semantic:
+        print("\nStage 3A.2: Reconstructing semantics for debug visualization...")
+        context = reconstruct_semantics(context)
     
     print("\nStage 5: Generating Debug PDF...")
-    context = draw_debug_overlays(context, visualize_groups=args.groups or args.landmarks, visualize_landmarks=args.landmarks)
+    context = draw_debug_overlays(context, visualize_groups=args.groups or args.landmarks or args.zones or args.semantic, visualize_landmarks=args.landmarks, visualize_zones=args.zones, visualize_semantics=args.semantic)
     
     debug_log = next(log for log in reversed(context.audit_log) if log["action"] == "generate_debug_pdf")
     print(f"  Success: {debug_log.get('output_path')}")
+
+def cmd_semantic(args):
+    print(f"Stage 3A.2 Semantic Reconstruction for: {args.pdf_path}")
+    slug = os.path.splitext(os.path.basename(args.pdf_path))[0]
+    
+    context = ingest_pdf(args.pdf_path, slug)
+    
+    inspector = None
+    if getattr(args, 'telemetry', False) or getattr(args, 'telemetry_json', False) or getattr(args, 'trace_group', None):
+        from extractor.telemetry import EventBus
+        from extractor.inspector import Inspector
+        context.event_bus = EventBus()
+        context.telemetry_enabled = True
+        inspector = Inspector()
+        context.event_bus.subscribe(inspector.receive)
+        
+    context = normalize_context(context)
+    context = detect_publisher(context)
+    context = detect_layout(context)
+    context = detect_consensus(context)
+    
+    ordered_blocks = compute_reading_order(context)
+    context = assemble_typographic_groups(ordered_blocks, context)
+    context = detect_landmarks(context)
+    context = partition_zones(context)
+    context = reconstruct_semantics(context)
+    
+    blocks = context.semantic_blocks
+    if blocks:
+        print(f"\nDocument reconstructed into {len(blocks)} semantic blocks:")
+        type_counts = {}
+        for b in blocks:
+            type_counts[b.semantic_type.name] = type_counts.get(b.semantic_type.name, 0) + 1
+        for t, c in type_counts.items():
+            print(f"  {t}: {c} groups")
+            
+    if inspector:
+        print("\n")
+        if getattr(args, 'telemetry_json', False):
+            print(inspector.export_json())
+        elif getattr(args, 'trace_group', None):
+            inspector.print_group_trace(args.trace_group)
+        else:
+            inspector.print_report()
 
 def main():
     parser = argparse.ArgumentParser(description="Paperly Phase 3A.0 Extraction Pipeline")
@@ -220,6 +314,8 @@ def main():
     debug_parser.add_argument("pdf_path", help="Path to the PDF file")
     debug_parser.add_argument("--groups", action="store_true", help="Visualize assembled TypographicGroups instead of raw blocks")
     debug_parser.add_argument("--landmarks", action="store_true", help="Visualize Structural Fences and Document Anchors")
+    debug_parser.add_argument("--zones", action="store_true", help="Visualize Zonal Partitioning")
+    debug_parser.add_argument("--semantic", action="store_true", help="Visualize Semantic Reconstruction")
     
     # assemble
     assemble_parser = subparsers.add_parser("assemble", help="Run Stage 1 Typographic Assembly")
@@ -230,6 +326,14 @@ def main():
     # landmarks
     landmarks_parser = subparsers.add_parser("landmarks", help="Run Stage 3A.2 Landmark Detection")
     landmarks_parser.add_argument("pdf_path", help="Path to the PDF file")
+    
+    # zones
+    zones_parser = subparsers.add_parser("zones", help="Run Stage 3A.2 Zonal Partitioning")
+    zones_parser.add_argument("pdf_path", help="Path to the PDF file")
+    
+    # semantic
+    semantic_parser = subparsers.add_parser("semantic", help="Run Stage 3A.2 Semantic Reconstruction")
+    semantic_parser.add_argument("pdf_path", help="Path to the PDF file")
     
     args = parser.parse_args()
     
@@ -247,6 +351,10 @@ def main():
         cmd_assemble(args)
     elif args.command == "landmarks":
         cmd_landmarks(args)
+    elif args.command == "zones":
+        cmd_zones(args)
+    elif args.command == "semantic":
+        cmd_semantic(args)
 
 if __name__ == "__main__":
     main()

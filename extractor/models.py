@@ -19,6 +19,8 @@ class BlockType(Enum):
     FOOTNOTE = auto()
     REFERENCES = auto()
     NOISE = auto()
+    PAGE_HEADER = auto()
+    PAGE_FOOTER = auto()
 
 @dataclass(slots=True)
 class DocumentLayout:
@@ -100,6 +102,12 @@ class ExtractionContext:
     
     # Output of Phase 3A.2 Step 1
     landmark_report: Optional['LandmarkReport'] = None
+    
+    # Output of Phase 3A.2 Step 2
+    zonal_partition: Optional['ZonalPartition'] = None
+    
+    # Output of Phase 3A (Semantic Reconstruction)
+    semantic_blocks: List['SemanticBlock'] = field(default_factory=list)
     
     # Telemetry
     telemetry_enabled: bool = False
@@ -251,6 +259,27 @@ class LandmarkReport:
     anchors: List[DocumentAnchor]
     average_confidence: float
 
+# --- Phase 3A.2 Step 2: Zonal Partitioning Models ---
+
+class ZoneType(Enum):
+    FRONT_MATTER = auto()
+    BODY = auto()
+    ACKNOWLEDGEMENTS = auto()
+    REFERENCES = auto()
+    APPENDIX = auto()
+    UNKNOWN = auto()
+
+@dataclass(slots=True)
+class DocumentZone:
+    zone_type: ZoneType
+    start_index: int
+    end_index: int
+    groups: List['TypographicGroup']
+
+@dataclass(slots=True)
+class ZonalPartition:
+    zones: List[DocumentZone] = field(default_factory=list)
+
 # --- Phase 3A.1: Semantic Reconstruction Models ---
 
 
@@ -277,10 +306,10 @@ class SemanticType(Enum):
 @dataclass(slots=True)
 class SemanticBlock:
     """
-    A semantic annotation layered on top of a frozen TextBlock.
-    Never modifies the source block — only references it.
+    A semantic annotation layered on top of a frozen TypographicGroup.
+    Never modifies the source group — only references it.
     """
-    source_block: TextBlock
+    source_group: 'TypographicGroup'
     semantic_type: SemanticType
     confidence: float
     reason: str

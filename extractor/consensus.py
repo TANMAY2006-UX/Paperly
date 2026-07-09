@@ -65,9 +65,6 @@ def detect_consensus(context: ExtractionContext) -> ExtractionContext:
     # 6. Second pass: Apply DocumentLayout to PageBlocks
     for p in context.pages:
         for b in p.blocks:
-            if len(b.text.strip()) < 10:
-                b.block_type = BlockType.NOISE
-                continue
             
             width_ratio = b.x1 - b.x0
             if kind == DocumentLayoutKind.DOUBLE_COLUMN:
@@ -75,6 +72,13 @@ def detect_consensus(context: ExtractionContext) -> ExtractionContext:
                 if width_ratio > 0.8:
                     b.spans_columns = True
             
+            # Quaratine Page Furniture
+            if p.layout:
+                if b.y0 < p.layout.header_zone_y:
+                    b.block_type = BlockType.PAGE_HEADER
+                elif b.y1 > p.layout.footer_zone_y:
+                    b.block_type = BlockType.PAGE_FOOTER
+
             if not b.spans_columns and b.block_type == BlockType.NOISE:
                 b.block_type = BlockType.PARAGRAPH # Tentative baseline for now
 

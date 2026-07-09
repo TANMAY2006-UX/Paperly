@@ -25,6 +25,25 @@ def _compute_evidence(b1: TextBlock, b2: TextBlock, policy: AssemblyPolicy) -> E
     if b1.page_num != b2.page_num:
         ev.reasoning_summary = "cross-page"
         return ev
+        
+    # Hard constraint: Structural Line Break
+    w1 = b1.x1 - b1.x0
+    w2 = b2.x1 - b2.x0
+
+    center1 = (b1.x0 + b1.x1) / 2.0
+    center2 = (b2.x0 + b2.x1) / 2.0
+    is_centered = abs(center1 - center2) < 0.03
+    
+    b1_vcenter = (b1.y0 + b1.y1) / 2.0
+    b2_vcenter = (b2.y0 + b2.y1) / 2.0
+    b1_height = b1.y1 - b1.y0
+    is_inline = abs(b1_vcenter - b2_vcenter) < (b1_height * 0.5)
+
+    is_short_line = w1 < (w2 * 0.75)
+
+    if is_short_line and not is_centered and not b1.text.strip().endswith('-') and not is_inline:
+        ev.reasoning_summary = "structural line break"
+        return ev
     
     vertical_gap = b2.y0 - b1.y1
     
@@ -52,12 +71,16 @@ def _compute_evidence(b1: TextBlock, b2: TextBlock, policy: AssemblyPolicy) -> E
         ev.font_evidence = 0.15
         
     # 3. Horizontal Alignment
+    import re
     x_diff = abs(b1.x0 - b2.x0)
     if x_diff < 0.02:
         ev.horizontal_evidence = 0.2
     elif b2.x0 > b1.x0 and b2.x0 - b1.x0 < 0.05:
         # typical indent
         ev.horizontal_evidence = 0.15
+    elif re.match(r'^(?:[1-9][0-9]*|[IVXLCDM]+|[A-Z])(?:\.[0-9]+)*\.?$', b1.text.strip()) and vertical_gap <= b1.size * 0.1 and b1.y0 <= b2.y0 and b1.y1 >= b2.y1:
+        # Tab-stop assembly rule for purely enumerated labels
+        ev.horizontal_evidence = 0.8
         
     # 4. Hyphenation Proof
     if b1.text.strip().endswith('-'):
@@ -108,7 +131,7 @@ def assemble_typographic_groups(
             ignored_blocks.append(b)
             continue
             
-        if part_policy.ignore_noise_type and b.block_type == BlockType.NOISE:
+        if part_policy.ignore_noise_type and b.block_type in (BlockType.NOISE, BlockType.PAGE_HEADER, BlockType.PAGE_FOOTER):
             ignored_blocks.append(b)
             continue
             

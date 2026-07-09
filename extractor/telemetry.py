@@ -6,8 +6,10 @@ class EventType(Enum):
     STAGE_TRANSITION = auto()
     DECISION = auto()
     ANOMALY = auto()
+    ZONE_CREATED = auto()
 
 from dataclasses import dataclass, field
+from typing import Optional
 
 @dataclass(slots=True)
 class TelemetryEvent:
@@ -36,6 +38,17 @@ class AnomalyEvent(TelemetryEvent):
     message: str
     def __post_init__(self):
         self.event_type = EventType.ANOMALY
+
+@dataclass(slots=True)
+class ZoneEvent(TelemetryEvent):
+    zone_type: str
+    start_index: int
+    end_index: int
+    group_count: int
+    trigger_fence: Optional[str]
+    
+    def __post_init__(self):
+        self.event_type = EventType.ZONE_CREATED
 
 class EventBus:
     """
