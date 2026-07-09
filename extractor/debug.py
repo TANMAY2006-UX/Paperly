@@ -22,9 +22,27 @@ def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_out
     
     doc = fitz.open(context.pdf_path)
     
+    # Pre-calculate counts for summary
+    total_raw_blocks = sum(len(p.blocks) for p in context.pages)
+    total_groups = len(context.assembled_groups) if hasattr(context, 'assembled_groups') and context.assembled_groups else 0
+    furniture_removed = sum(len(p.layout.page_headers) + len(p.layout.page_footers) for p in context.pages if p.layout)
+    landmarks_detected = len(context.landmark_report.fences) + len(context.landmark_report.anchors) if hasattr(context, 'landmark_report') and context.landmark_report else 0
+    zones_detected = len(context.zonal_partition.zones) if hasattr(context, 'zonal_partition') and context.zonal_partition else 0
+    semantic_nodes = len(context.semantic_blocks) if hasattr(context, 'semantic_blocks') and context.semantic_blocks else 0
+    
     for p in context.pages:
         page = doc[p.page_num]
         layout = p.layout
+        
+        # Determine block/group order
+        ordered_block_ids = []
+        if hasattr(context, 'ordered_blocks') and context.ordered_blocks:
+            ordered_block_ids = [b.textblock_id for b in context.ordered_blocks]
+            
+        group_to_order = {}
+        if hasattr(context, 'assembled_groups') and context.assembled_groups:
+            for idx, g in enumerate(context.assembled_groups):
+                group_to_order[g.group_id] = idx
         
         # 1. Draw Text Blocks or Typographic Groups
         if visualize_semantics and hasattr(context, 'semantic_blocks') and context.semantic_blocks:
@@ -54,14 +72,19 @@ def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_out
                 y1 = g.y1 * p.height
                 rect = fitz.Rect(x0, y0, x1, y1)
                 
+                order_idx = group_to_order.get(g.group_id, "?")
+                
                 if g.group_id in group_to_sem:
                     sb = group_to_sem[g.group_id]
                     color = semantic_colors.get(sb.semantic_type.name, (0.8, 0.8, 0.8))
                     page.draw_rect(rect, color=color, fill=color, fill_opacity=0.3, width=2.0)
-                    page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), f"{sb.semantic_type.name} ({sb.confidence:.2f})", fontsize=6, color=(0, 0, 0))
+                    label = f"TG#{g.group_id} | O:{order_idx} | {sb.semantic_type.name}"
+                    page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), label, fontsize=6, color=(0, 0, 0))
                 else:
                     page.draw_rect(rect, color=(1, 0, 0), width=1.0)
-                    page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), "UNCLASSIFIED", fontsize=6, color=(1, 0, 0))
+                    label = f"TG#{g.group_id} | O:{order_idx} | UNCLASSIFIED"
+                    page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), label, fontsize=6, color=(1, 0, 0))
+                    
         elif visualize_zones and hasattr(context, 'zonal_partition') and context.zonal_partition:
             group_to_zone = {}
             zone_colors = {
@@ -84,13 +107,18 @@ def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_out
                 x1 = g.x1 * p.width
                 y1 = g.y1 * p.height
                 rect = fitz.Rect(x0, y0, x1, y1)
+                order_idx = group_to_order.get(g.group_id, "?")
                 
                 if g.group_id in group_to_zone:
                     z_name, z_color = group_to_zone[g.group_id]
                     page.draw_rect(rect, color=z_color, fill=z_color, fill_opacity=0.3, width=2.0)
-                    page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), f"{z_name}", fontsize=6, color=(0, 0, 0))
+                    label = f"TG#{g.group_id} | O:{order_idx} | {z_name}"
+                    page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), label, fontsize=6, color=(0, 0, 0))
                 else:
                     page.draw_rect(rect, color=(1, 0.5, 0), width=1.0)
+                    label = f"TG#{g.group_id} | O:{order_idx} | UNZONED"
+                    page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), label, fontsize=6, color=(1, 0.5, 0))
+                    
         elif visualize_groups and hasattr(context, 'assembled_groups') and context.assembled_groups:
             page_groups = [g for g in context.assembled_groups if g.source_blocks and g.source_blocks[0].page_num == p.page_num]
             for g in page_groups:
@@ -99,29 +127,32 @@ def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_out
                 x1 = g.x1 * p.width
                 y1 = g.y1 * p.height
                 rect = fitz.Rect(x0, y0, x1, y1)
+                order_idx = group_to_order.get(g.group_id, "?")
                 
                 # Draw group box in orange
                 page.draw_rect(rect, color=(1, 0.5, 0), width=2.0)
                 
                 # If visualizing landmarks, draw landmarks on top
-                if visualize_landmarks and context.landmark_report:
+                if visualize_landmarks and hasattr(context, 'landmark_report') and context.landmark_report:
                     matched_fence = next((f for f in context.landmark_report.fences if g.group_id in f.group_ids), None)
                     matched_anchor = next((a for a in context.landmark_report.anchors if g.group_id in a.group_ids), None)
                     
                     if matched_fence:
                         page.draw_rect(rect, color=(1, 0, 0), fill=(1, 0, 0), fill_opacity=0.2, width=3.0)
-                        lbl = f"{matched_fence.fence_type.name} ({matched_fence.confidence_score:.2f} {matched_fence.dominant_category.name})"
+                        lbl = f"TG#{g.group_id} | O:{order_idx} | {matched_fence.fence_type.name}"
                         page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), lbl, fontsize=8, color=(1, 0, 0))
                     elif matched_anchor:
                         page.draw_rect(rect, color=(0, 0.5, 1), fill=(0, 0.5, 1), fill_opacity=0.2, width=3.0)
-                        lbl = f"{matched_anchor.anchor_type.name} ({matched_anchor.confidence_score:.2f} {matched_anchor.dominant_category.name})"
+                        lbl = f"TG#{g.group_id} | O:{order_idx} | {matched_anchor.anchor_type.name}"
                         page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), lbl, fontsize=8, color=(0, 0.5, 1))
                     else:
                         conf_str = f"{g.evidence_vector.total_confidence:.2f}"
-                        page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), f"{g.group_id} ({conf_str})", fontsize=6, color=(1, 0.5, 0))
+                        lbl = f"TG#{g.group_id} | O:{order_idx} | Conf:{conf_str}"
+                        page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), lbl, fontsize=6, color=(1, 0.5, 0))
                 else:
                     conf_str = f"{g.evidence_vector.total_confidence:.2f}"
-                    page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), f"{g.group_id} ({conf_str})", fontsize=6, color=(1, 0.5, 0))
+                    lbl = f"TG#{g.group_id} | O:{order_idx} | Conf:{conf_str}"
+                    page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), lbl, fontsize=6, color=(1, 0.5, 0))
         else:
             for b in p.blocks:
                 x0 = b.x0 * p.width
@@ -132,6 +163,8 @@ def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_out
                 
                 is_noise = b.block_type == BlockType.NOISE
                 is_spanning = b.spans_columns
+                is_header = layout and b.textblock_id in layout.page_headers
+                is_footer = layout and b.textblock_id in layout.page_footers
                 
                 color = (0.5, 0.5, 0.5)  
                 
@@ -146,14 +179,26 @@ def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_out
                             color = (0, 0, 0.8)  # Blue
                             
                 page.draw_rect(rect, color=color, width=1.5)
+                
+                order_idx = "?"
+                try:
+                    if b.textblock_id in ordered_block_ids:
+                        order_idx = ordered_block_ids.index(b.textblock_id)
+                except ValueError:
+                    pass
+                
+                lbl = f"TB#{b.textblock_id} | O:{order_idx}"
+                if is_header: lbl += " | HEADER"
+                if is_footer: lbl += " | FOOTER"
+                page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), lbl, fontsize=6, color=color)
             
         # 2. Draw Header/Footer Zones
-        header_y = layout.header_zone_y * p.height
-        footer_y = layout.footer_zone_y * p.height
-        
-        page.draw_line(fitz.Point(0, header_y), fitz.Point(p.width, header_y), color=(0.8, 0.8, 0), width=2)
-        page.draw_line(fitz.Point(0, footer_y), fitz.Point(p.width, footer_y), color=(0.8, 0, 0), width=2)
-        
+        if layout:
+            header_y = layout.header_zone_y * p.height
+            footer_y = layout.footer_zone_y * p.height
+            page.draw_line(fitz.Point(0, header_y), fitz.Point(p.width, header_y), color=(0.8, 0.8, 0), width=2)
+            page.draw_line(fitz.Point(0, footer_y), fitz.Point(p.width, footer_y), color=(0.8, 0, 0), width=2)
+            
         # 3. Draw Gutters
         if context.document_layout and context.document_layout.kind == DocumentLayoutKind.DOUBLE_COLUMN:
             global_split = context.document_layout.primary_split_x
@@ -161,26 +206,88 @@ def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_out
                 gx = global_split * p.width
                 page.draw_line(fitz.Point(gx, 0), fitz.Point(gx, p.height), color=(1, 0.5, 0), width=3)
                 
-        if layout.column_count == 2 and layout.column_split_x:
+        if layout and layout.column_count == 2 and layout.column_split_x:
             split_x_px = layout.column_split_x * p.width
             page.draw_line(fitz.Point(split_x_px, 0), fitz.Point(split_x_px, p.height), color=(1, 0.5, 0), width=1.5, dashes="[5 5]")
             
-        # 4. Annotate Page
+        # 4. Annotate Page & Add Legend to Page 0
         publisher_name = context.publisher.name if context.publisher else "Unknown"
         doc_kind = context.document_layout.kind.name if context.document_layout else "UNKNOWN"
         doc_conf = context.document_layout.confidence if context.document_layout else 0.0
         
+        if p.page_num == 0:
+            # Legend & Developer Summary on Page 0
+            dev_summary = (
+                "--- Developer Summary ---\n"
+                f"Pages: {len(context.pages)}\n"
+                f"Raw TextBlocks: {total_raw_blocks}\n"
+                f"TypographicGroups: {total_groups}\n"
+                f"Furniture removed: {furniture_removed}\n"
+                f"Landmarks detected: {landmarks_detected}\n"
+                f"Zones detected: {zones_detected}\n"
+                f"Semantic Nodes: {semantic_nodes}\n\n"
+                "--- Legend ---\n"
+            )
+            
+            if visualize_semantics:
+                dev_summary += (
+                    "Renderer: Semantic\n"
+                    "Blue: TITLE\n"
+                    "Purple: AUTHORS/AFFILIATIONS\n"
+                    "Orange: ABSTRACT\n"
+                    "Red: SECTION_HEADER\n"
+                    "Light Gray: PARAGRAPH\n"
+                    "Green/Teal: CAPTIONS\n"
+                    "Light Red: REFERENCES\n"
+                )
+            elif visualize_zones:
+                dev_summary += (
+                    "Renderer: Zonal\n"
+                    "Light Blue: FRONT_MATTER\n"
+                    "Green: BODY\n"
+                    "Light Red: REFERENCES\n"
+                    "Purple: APPENDIX\n"
+                )
+            elif visualize_landmarks:
+                dev_summary += (
+                    "Renderer: Landmarks & Groups\n"
+                    "Red fill: MATCHED FENCE (Sections)\n"
+                    "Blue fill: MATCHED ANCHOR (Title/Abstract)\n"
+                    "Orange outline: TYPOGRAPHIC GROUP\n"
+                )
+            elif visualize_groups:
+                dev_summary += (
+                    "Renderer: Typographic Groups\n"
+                    "Orange outline: TYPOGRAPHIC GROUP\n"
+                )
+            else:
+                dev_summary += (
+                    "Renderer: Raw TextBlocks\n"
+                    "Green outline: Left Column Block\n"
+                    "Blue outline: Right Column Block\n"
+                    "Purple outline: Spanning Block\n"
+                    "Gray outline: Noise Block\n"
+                    "Yellow line: Universal Body Top (M_top)\n"
+                    "Red line: Universal Body Bottom (M_bot)\n"
+                    "Dashed Orange line: Local Column Split\n"
+                    "Solid Orange line: Global Column Split\n"
+                )
+                
+            text_rect = fitz.Rect(10, 10, 250, 350)
+            page.draw_rect(text_rect, color=(0,0,0), fill=(1,1,1), width=1, fill_opacity=0.85)
+            page.insert_textbox(text_rect, dev_summary, fontsize=10, color=(0,0,0), align=0)
+
+        # Standard Page Annotation (top right)
         annotation_text = (
             f"Page: {p.page_num}\n"
             f"Publisher: {publisher_name}\n"
-            f"Local Layout: {layout.column_count}-col (Conf: {layout.confidence:.2f})\n"
+            f"Local Layout: {layout.column_count if layout else '?'}-col\n"
             f"Doc Layout: {doc_kind} (Conf: {doc_conf:.2f})\n"
-            f"Blocks: {len(p.blocks)}"
         )
         
-        text_rect = fitz.Rect(p.width - 200, 10, p.width - 10, 100)
-        page.draw_rect(text_rect, color=(0,0,0), fill=(1,1,1), width=1)
-        page.insert_textbox(text_rect, annotation_text, fontsize=12, color=(0,0,0), align=0)
+        text_rect2 = fitz.Rect(p.width - 200, 10, p.width - 10, 80)
+        page.draw_rect(text_rect2, color=(0,0,0), fill=(1,1,1), width=1, fill_opacity=0.85)
+        page.insert_textbox(text_rect2, annotation_text, fontsize=12, color=(0,0,0), align=0)
         
     doc.save(out_path)
     doc.close()

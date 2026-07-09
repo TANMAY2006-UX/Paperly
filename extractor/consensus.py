@@ -74,9 +74,9 @@ def detect_consensus(context: ExtractionContext) -> ExtractionContext:
             
             # Quaratine Page Furniture
             if p.layout:
-                if b.y0 < p.layout.header_zone_y:
+                if b.textblock_id in p.layout.page_headers:
                     b.block_type = BlockType.PAGE_HEADER
-                elif b.y1 > p.layout.footer_zone_y:
+                elif b.textblock_id in p.layout.page_footers:
                     b.block_type = BlockType.PAGE_FOOTER
 
             if not b.spans_columns and b.block_type == BlockType.NOISE:

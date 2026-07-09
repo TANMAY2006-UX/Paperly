@@ -58,7 +58,8 @@ def normalize_context(context: ExtractionContext) -> ExtractionContext:
                 size=b.size,
                 flags=b.flags,
                 page_num=b.page_num,
-                block_num=b.block_num
+                block_num=b.block_num,
+                textblock_id=b.textblock_id
             )
             normalized_blocks.append(normalized_tb)
             

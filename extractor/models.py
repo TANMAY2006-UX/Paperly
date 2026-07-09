@@ -46,6 +46,7 @@ class TextBlock:
     flags: int
     page_num: int
     block_num: int
+    textblock_id: int = -1
     spans_columns: bool = False
     block_type: BlockType = field(default=BlockType.NOISE)
 
@@ -61,6 +62,8 @@ class LayoutProfile:
     right_margin: float
     column_split_x: Optional[float] = None
     confidence: float = 1.0
+    page_headers: List[int] = field(default_factory=list)
+    page_footers: List[int] = field(default_factory=list)
 
 @dataclass(slots=True)
 class PageBlocks:

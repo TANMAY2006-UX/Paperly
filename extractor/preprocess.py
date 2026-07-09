@@ -17,33 +17,98 @@ def _is_bold(font_name: str, flags: int) -> bool:
     font_lower = font_name.lower()
     return any(indicator in font_lower for indicator in ["bold", "-bd", "heavy", "black", "demi", "medi"])
 
-def _compute_evidence(b1: TextBlock, b2: TextBlock, policy: AssemblyPolicy) -> EvidenceVector:
-    """Computes the evidence vector for merging b1 and b2."""
+def _evaluate_flush(b1: TextBlock, b2: TextBlock, layout: 'LayoutProfile') -> bool:
+    return abs(b1.x0 - b2.x0) <= 0.02
+
+def _evaluate_centered(b1: TextBlock, b2: TextBlock, layout: 'LayoutProfile') -> bool:
+    center1 = (b1.x0 + b1.x1) / 2.0
+    center2 = (b2.x0 + b2.x1) / 2.0
+    return abs(center1 - center2) <= 0.03
+
+def _evaluate_hanging(b1: TextBlock, b2: TextBlock, layout: 'LayoutProfile') -> bool:
+    return b2.x0 - b1.x0 > 0.02 and b2.x0 - b1.x0 <= 0.15
+
+def _evaluate_paragraph_indent(b1: TextBlock, b2: TextBlock, layout: 'LayoutProfile') -> bool:
+    return b1.x0 - b2.x0 > 0.02 and b1.x0 - b2.x0 <= 0.15
+
+def evaluate_horizontal_continuity(b1: TextBlock, b2: TextBlock, layout: 'LayoutProfile') -> Tuple[float, str]:
+    if _evaluate_flush(b1, b2, layout):
+        return (0.20, "+Horizontal(Flush)")
+    if _evaluate_centered(b1, b2, layout):
+        return (0.20, "+Horizontal(Centered)")
+    if _evaluate_paragraph_indent(b1, b2, layout):
+        return (0.20, "+Horizontal(Indent)")
+    if _evaluate_hanging(b1, b2, layout):
+        return (0.20, "+Horizontal(Hanging)")
+    return (0.0, "")
+
+def _compute_evidence(b1: TextBlock, b2: TextBlock, policy: AssemblyPolicy, layout: 'LayoutProfile' = None) -> EvidenceVector:
+    """
+    Computes the evidence vector for merging b1 and b2.
+
+    layout: the LayoutProfile for the page, used to derive column widths and centers
+    for structural invariants (Hard Line Break, Centered Continuation).
+    """
     ev = EvidenceVector()
     
     # 0. Hard constraints
     if b1.page_num != b2.page_num:
         ev.reasoning_summary = "cross-page"
         return ev
+
+    # Hard constraint: Structural Line Break (Phase 3D — Approved Invariant)
+    b1_width = b1.x1 - b1.x0
+    has_trailing_hyphen = b1.text.strip().endswith('-')
+
+    column_width = 0.0
+    if layout:
+        if layout.column_count == 2 and layout.column_split_x is not None:
+            column_width = layout.column_split_x - layout.left_margin
+        else:
+            column_width = layout.right_margin - layout.left_margin
+
+    if column_width > 0.0:
+        is_short_line = b1_width < column_width * 0.6
+        is_new_line_start = b2.x0 < b1_width * 1.2
         
-    # Hard constraint: Structural Line Break
-    w1 = b1.x1 - b1.x0
-    w2 = b2.x1 - b2.x0
+        # Centered Continuation Invariant (Phase E)
+        # If both blocks are geometrically centered relative to each other AND
+        # relative to the page or column, they form a centered primitive and
+        # should bypass the structural line break veto.
+        center1 = (b1.x0 + b1.x1) / 2.0
+        center2 = (b2.x0 + b2.x1) / 2.0
+        is_mutually_centered = abs(center1 - center2) < 0.03
+        
+        is_geometrically_centered = False
+        if is_mutually_centered:
+            page_center = (layout.left_margin + layout.right_margin) / 2.0
+            if abs(center1 - page_center) < 0.05:
+                is_geometrically_centered = True
+            elif layout.column_count == 2 and layout.column_split_x is not None:
+                left_col_center = (layout.left_margin + layout.column_split_x) / 2.0
+                right_col_center = (layout.column_split_x + layout.right_margin) / 2.0
+                if abs(center1 - left_col_center) < 0.05 or abs(center1 - right_col_center) < 0.05:
+                    is_geometrically_centered = True
 
-    center1 = (b1.x0 + b1.x1) / 2.0
-    center2 = (b2.x0 + b2.x1) / 2.0
-    is_centered = abs(center1 - center2) < 0.03
-    
-    b1_vcenter = (b1.y0 + b1.y1) / 2.0
-    b2_vcenter = (b2.y0 + b2.y1) / 2.0
-    b1_height = b1.y1 - b1.y0
-    is_inline = abs(b1_vcenter - b2_vcenter) < (b1_height * 0.5)
+        if is_short_line and not has_trailing_hyphen and is_new_line_start and not is_geometrically_centered:
+            ev.reasoning_summary = "structural line break (column-width gate)"
+            return ev
+    else:
+        # Fallback when layout is unavailable: relative comparison
 
-    is_short_line = w1 < (w2 * 0.75)
-
-    if is_short_line and not is_centered and not b1.text.strip().endswith('-') and not is_inline:
-        ev.reasoning_summary = "structural line break"
-        return ev
+        # (temporary; should not occur after layout detection runs)
+        w2 = b2.x1 - b2.x0
+        center1 = (b1.x0 + b1.x1) / 2.0
+        center2 = (b2.x0 + b2.x1) / 2.0
+        is_centered = abs(center1 - center2) < 0.03
+        b1_vcenter = (b1.y0 + b1.y1) / 2.0
+        b2_vcenter = (b2.y0 + b2.y1) / 2.0
+        b1_height = b1.y1 - b1.y0
+        is_inline = abs(b1_vcenter - b2_vcenter) < (b1_height * 0.5)
+        is_short_line = b1_width < (w2 * 0.75)
+        if is_short_line and not is_centered and not has_trailing_hyphen and not is_inline:
+            ev.reasoning_summary = "structural line break (relative fallback)"
+            return ev
     
     vertical_gap = b2.y0 - b1.y1
     
@@ -71,17 +136,12 @@ def _compute_evidence(b1: TextBlock, b2: TextBlock, policy: AssemblyPolicy) -> E
         ev.font_evidence = 0.15
         
     # 3. Horizontal Alignment
-    import re
-    x_diff = abs(b1.x0 - b2.x0)
-    if x_diff < 0.02:
-        ev.horizontal_evidence = 0.2
-    elif b2.x0 > b1.x0 and b2.x0 - b1.x0 < 0.05:
-        # typical indent
-        ev.horizontal_evidence = 0.15
-    elif re.match(r'^(?:[1-9][0-9]*|[IVXLCDM]+|[A-Z])(?:\.[0-9]+)*\.?$', b1.text.strip()) and vertical_gap <= b1.size * 0.1 and b1.y0 <= b2.y0 and b1.y1 >= b2.y1:
-        # Tab-stop assembly rule for purely enumerated labels
-        ev.horizontal_evidence = 0.8
+    h_score, h_reason = evaluate_horizontal_continuity(b1, b2, layout)
+    ev.horizontal_evidence = h_score
+    if h_reason:
+        ev.reasoning_summary = (ev.reasoning_summary + " " if ev.reasoning_summary else "") + h_reason
         
+    x_diff = abs(b1.x0 - b2.x0)
     # 4. Hyphenation Proof
     if b1.text.strip().endswith('-'):
         if x_diff < 0.02:  # B2 starts at same margin
@@ -99,9 +159,10 @@ def _compute_evidence(b1: TextBlock, b2: TextBlock, policy: AssemblyPolicy) -> E
         threshold = 0.75
         
     if ev.total_confidence >= threshold:
-        ev.reasoning_summary = "passed threshold"
+        ev.reasoning_summary = (ev.reasoning_summary + " (passed)" if ev.reasoning_summary else "passed threshold")
     else:
-        ev.reasoning_summary = f"failed threshold ({ev.total_confidence:.2f} < {threshold})"
+        ev.reasoning_summary = (ev.reasoning_summary + " " if ev.reasoning_summary else "") + f"failed threshold ({ev.total_confidence:.2f} < {threshold})"
+
         
     return ev
 
@@ -214,13 +275,18 @@ def assemble_typographic_groups(
         )
         groups.append(group)
     
+    # Build a page → LayoutProfile lookup
+    page_layouts = {p.page_num: p.layout for p in context.pages if p.layout}
+
     for block in participating_blocks:
         if not current_cluster:
             current_cluster.append(block)
             continue
             
         last_block = current_cluster[-1]
-        ev = _compute_evidence(last_block, block, policy)
+        layout = page_layouts.get(last_block.page_num)
+        ev = _compute_evidence(last_block, block, policy, layout=layout)
+
         
         threshold = 0.85
         if policy == AssemblyPolicy.AGGRESSIVE: threshold = 0.65
