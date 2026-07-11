@@ -2,7 +2,7 @@ import os
 import fitz
 from extractor.models import ExtractionContext, DocumentLayoutKind, BlockType
 
-def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_output", visualize_groups: bool = False, visualize_landmarks: bool = False, visualize_zones: bool = False, visualize_semantics: bool = False) -> ExtractionContext:
+def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_output", visualize_groups: bool = False, visualize_landmarks: bool = False, visualize_zones: bool = False, visualize_semantics: bool = False, visualize_audit: bool = False) -> ExtractionContext:
     """
     Stage 5/Debug: Debug Rendering
     Generates a debug PDF with visual overlays to validate geometric algorithms.
@@ -26,7 +26,7 @@ def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_out
     total_raw_blocks = sum(len(p.blocks) for p in context.pages)
     total_groups = len(context.assembled_groups) if hasattr(context, 'assembled_groups') and context.assembled_groups else 0
     furniture_removed = sum(len(p.layout.page_headers) + len(p.layout.page_footers) for p in context.pages if p.layout)
-    landmarks_detected = len(context.landmark_report.fences) + len(context.landmark_report.anchors) if hasattr(context, 'landmark_report') and context.landmark_report else 0
+    landmarks_detected = len(context.landmark_report.tokens) if hasattr(context, 'landmark_report') and context.landmark_report else 0
     zones_detected = len(context.zonal_partition.zones) if hasattr(context, 'zonal_partition') and context.zonal_partition else 0
     semantic_nodes = len(context.semantic_blocks) if hasattr(context, 'semantic_blocks') and context.semantic_blocks else 0
     
@@ -40,9 +40,15 @@ def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_out
             ordered_block_ids = [b.textblock_id for b in context.ordered_blocks]
             
         group_to_order = {}
+        transition_groups = set()
         if hasattr(context, 'assembled_groups') and context.assembled_groups:
+            prev_class = None
             for idx, g in enumerate(context.assembled_groups):
                 group_to_order[g.group_id] = idx
+                if prev_class is not None and hasattr(g, 'typography_class') and g.typography_class != prev_class:
+                    transition_groups.add(g.group_id)
+                if hasattr(g, 'typography_class'):
+                    prev_class = g.typography_class
         
         # 1. Draw Text Blocks or Typographic Groups
         if visualize_semantics and hasattr(context, 'semantic_blocks') and context.semantic_blocks:
@@ -73,16 +79,31 @@ def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_out
                 rect = fitz.Rect(x0, y0, x1, y1)
                 
                 order_idx = group_to_order.get(g.group_id, "?")
+                is_transition = g.group_id in transition_groups
+                delta = "[Δ] " if is_transition else ""
+                
+                if visualize_audit:
+                    size = g.evidence_vector.physical_dominant_size
+                    bold = "B" if g.evidence_vector.physical_is_bold else "R"
+                    base_lbl = f"{delta}TG#{g.group_id} | O:{order_idx} | C:{g.typography_class} | {size:.2f}pt, {bold}"
+                else:
+                    base_lbl = f"{delta}TG#{g.group_id} | O:{order_idx} | Class:{g.typography_class}"
                 
                 if g.group_id in group_to_sem:
                     sb = group_to_sem[g.group_id]
                     color = semantic_colors.get(sb.semantic_type.name, (0.8, 0.8, 0.8))
-                    page.draw_rect(rect, color=color, fill=color, fill_opacity=0.3, width=2.0)
-                    label = f"TG#{g.group_id} | O:{order_idx} | {sb.semantic_type.name}"
+                    if is_transition:
+                        page.draw_rect(rect, color=(1, 1, 0), width=2.0)
+                    else:
+                        page.draw_rect(rect, color=color, fill=color, fill_opacity=0.3, width=2.0)
+                    label = f"{base_lbl} | {sb.semantic_type.name}"
                     page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), label, fontsize=6, color=(0, 0, 0))
                 else:
-                    page.draw_rect(rect, color=(1, 0, 0), width=1.0)
-                    label = f"TG#{g.group_id} | O:{order_idx} | UNCLASSIFIED"
+                    if is_transition:
+                        page.draw_rect(rect, color=(1, 1, 0), width=2.0)
+                    else:
+                        page.draw_rect(rect, color=(1, 0, 0), width=1.0)
+                    label = f"{base_lbl} | UNCLASSIFIED"
                     page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), label, fontsize=6, color=(1, 0, 0))
                     
         elif visualize_zones and hasattr(context, 'zonal_partition') and context.zonal_partition:
@@ -108,15 +129,30 @@ def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_out
                 y1 = g.y1 * p.height
                 rect = fitz.Rect(x0, y0, x1, y1)
                 order_idx = group_to_order.get(g.group_id, "?")
+                is_transition = g.group_id in transition_groups
+                delta = "[Δ] " if is_transition else ""
+                
+                if visualize_audit:
+                    size = g.evidence_vector.physical_dominant_size
+                    bold = "B" if g.evidence_vector.physical_is_bold else "R"
+                    base_lbl = f"{delta}TG#{g.group_id} | O:{order_idx} | C:{g.typography_class} | {size:.2f}pt, {bold}"
+                else:
+                    base_lbl = f"{delta}TG#{g.group_id} | O:{order_idx} | Class:{g.typography_class}"
                 
                 if g.group_id in group_to_zone:
                     z_name, z_color = group_to_zone[g.group_id]
-                    page.draw_rect(rect, color=z_color, fill=z_color, fill_opacity=0.3, width=2.0)
-                    label = f"TG#{g.group_id} | O:{order_idx} | {z_name}"
+                    if is_transition:
+                        page.draw_rect(rect, color=(1, 1, 0), width=2.0)
+                    else:
+                        page.draw_rect(rect, color=z_color, fill=z_color, fill_opacity=0.3, width=2.0)
+                    label = f"{base_lbl} | {z_name}"
                     page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), label, fontsize=6, color=(0, 0, 0))
                 else:
-                    page.draw_rect(rect, color=(1, 0.5, 0), width=1.0)
-                    label = f"TG#{g.group_id} | O:{order_idx} | UNZONED"
+                    if is_transition:
+                        page.draw_rect(rect, color=(1, 1, 0), width=2.0)
+                    else:
+                        page.draw_rect(rect, color=(1, 0.5, 0), width=1.0)
+                    label = f"{base_lbl} | UNZONED"
                     page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), label, fontsize=6, color=(1, 0.5, 0))
                     
         elif visualize_groups and hasattr(context, 'assembled_groups') and context.assembled_groups:
@@ -128,31 +164,37 @@ def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_out
                 y1 = g.y1 * p.height
                 rect = fitz.Rect(x0, y0, x1, y1)
                 order_idx = group_to_order.get(g.group_id, "?")
+                is_transition = g.group_id in transition_groups
+                delta = "[Δ] " if is_transition else ""
                 
-                # Draw group box in orange
-                page.draw_rect(rect, color=(1, 0.5, 0), width=2.0)
+                if visualize_audit:
+                    size = g.evidence_vector.physical_dominant_size
+                    bold = "B" if g.evidence_vector.physical_is_bold else "R"
+                    base_lbl = f"{delta}TG#{g.group_id} | O:{order_idx} | C:{g.typography_class} | {size:.2f}pt, {bold}"
+                else:
+                    base_lbl = f"{delta}TG#{g.group_id} | O:{order_idx} | Class:{g.typography_class}"
+                
+                # Draw group box in orange, or yellow if transition
+                box_color = (1, 1, 0) if is_transition else (1, 0.5, 0)
+                page.draw_rect(rect, color=box_color, width=2.0)
                 
                 # If visualizing landmarks, draw landmarks on top
                 if visualize_landmarks and hasattr(context, 'landmark_report') and context.landmark_report:
-                    matched_fence = next((f for f in context.landmark_report.fences if g.group_id in f.group_ids), None)
-                    matched_anchor = next((a for a in context.landmark_report.anchors if g.group_id in a.group_ids), None)
+                    from extractor.models import LandmarkKind
+                    matched_token = next((t for t in context.landmark_report.tokens if g.group_id == t.group_id), None)
                     
-                    if matched_fence:
+                    if matched_token and matched_token.kind == LandmarkKind.OUTLIER:
                         page.draw_rect(rect, color=(1, 0, 0), fill=(1, 0, 0), fill_opacity=0.2, width=3.0)
-                        lbl = f"TG#{g.group_id} | O:{order_idx} | {matched_fence.fence_type.name}"
+                        lbl = f"{base_lbl} | [OUTLIER]"
                         page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), lbl, fontsize=8, color=(1, 0, 0))
-                    elif matched_anchor:
+                    elif matched_token and matched_token.kind == LandmarkKind.ANCHOR:
                         page.draw_rect(rect, color=(0, 0.5, 1), fill=(0, 0.5, 1), fill_opacity=0.2, width=3.0)
-                        lbl = f"TG#{g.group_id} | O:{order_idx} | {matched_anchor.anchor_type.name}"
+                        lbl = f"{base_lbl} | [ANCHOR]"
                         page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), lbl, fontsize=8, color=(0, 0.5, 1))
                     else:
-                        conf_str = f"{g.evidence_vector.total_confidence:.2f}"
-                        lbl = f"TG#{g.group_id} | O:{order_idx} | Conf:{conf_str}"
-                        page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), lbl, fontsize=6, color=(1, 0.5, 0))
+                        page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), base_lbl, fontsize=6, color=box_color)
                 else:
-                    conf_str = f"{g.evidence_vector.total_confidence:.2f}"
-                    lbl = f"TG#{g.group_id} | O:{order_idx} | Conf:{conf_str}"
-                    page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), lbl, fontsize=6, color=(1, 0.5, 0))
+                    page.insert_text(fitz.Point(x0, max(y0 - 2, 0)), base_lbl, fontsize=6, color=box_color)
         else:
             for b in p.blocks:
                 x0 = b.x0 * p.width
@@ -251,8 +293,8 @@ def draw_debug_overlays(context: ExtractionContext, output_dir: str = "debug_out
             elif visualize_landmarks:
                 dev_summary += (
                     "Renderer: Landmarks & Groups\n"
-                    "Red fill: MATCHED FENCE (Sections)\n"
-                    "Blue fill: MATCHED ANCHOR (Title/Abstract)\n"
+                    "Red fill: [OUTLIER] (Local Max)\n"
+                    "Blue fill: [ANCHOR] (Global Max)\n"
                     "Orange outline: TYPOGRAPHIC GROUP\n"
                 )
             elif visualize_groups:

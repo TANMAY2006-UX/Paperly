@@ -261,14 +261,16 @@ def assemble_typographic_groups(
             ev.total_confidence = 1.0
             ev.reasoning_summary = "isolated block"
             
+        ev.physical_dominant_font = dominant_font
+        ev.physical_dominant_size = dominant_size
+        ev.physical_is_bold = is_bold
+
         group = TypographicGroup(
             group_id=str(uuid.uuid4())[:8],
             raw_text="\n".join(raw_text_parts),
             display_text="".join(display_text_parts),
             x0=x0, y0=y0, x1=x1, y1=y1,
-            dominant_font=dominant_font,
-            dominant_size=dominant_size,
-            is_bold=is_bold,
+            typography_class=-1,
             source_blocks=cluster.copy(),
             evidence_vector=ev,
             repair_history=repair_history
@@ -327,6 +329,53 @@ def assemble_typographic_groups(
     if report.fragmentation_ratio > 0.9 and len(participating_blocks) > 50:
         report.warnings.append("High fragmentation ratio. Blocks are not merging. Is PDF scanned or policy too conservative?")
         
+    # 3. Typography Quantization
+    if groups:
+        # Group unique (size, bold) combinations
+        unique_signatures = list(set((g.evidence_vector.physical_dominant_size, g.evidence_vector.physical_is_bold) for g in groups))
+        
+        eps = 0.35  # The noise floor threshold
+        all_clusters = []
+        
+        # Partition by bold state to prevent cross-contamination
+        for bold_state in [False, True]:
+            sigs = [s for s in unique_signatures if s[1] == bold_state]
+            sigs.sort(key=lambda x: x[0])  # Sort by size
+            
+            clusters = []
+            for sig in sigs:
+                size, is_bold = sig
+                if not clusters:
+                    clusters.append([sig])
+                else:
+                    last_cluster = clusters[-1]
+                    last_size, _ = last_cluster[-1]
+                    
+                    if (size - last_size) <= eps:
+                        last_cluster.append(sig)
+                    else:
+                        clusters.append([sig])
+            all_clusters.extend(clusters)
+            
+        # Sort resulting clusters by average size, then by bold state
+        def cluster_key(c):
+            avg_size = sum(s[0] for s in c) / len(c)
+            bold_val = c[0][1]
+            return (avg_size, bold_val)
+            
+        all_clusters.sort(key=cluster_key)
+                    
+        # Assign sequential classes
+        sig_to_class = {}
+        for class_id, cluster in enumerate(all_clusters):
+            for sig in cluster:
+                sig_to_class[sig] = class_id
+                
+        # Mutate groups
+        for g in groups:
+            sig = (g.evidence_vector.physical_dominant_size, g.evidence_vector.physical_is_bold)
+            g.typography_class = sig_to_class[sig]
+            
     context.assembled_groups = groups
     context.quality_reports["Stage1_Assembly"] = report
     

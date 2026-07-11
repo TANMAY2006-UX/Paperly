@@ -11,7 +11,6 @@ from extractor.debug import draw_debug_overlays
 from extractor.ordering import compute_reading_order
 from extractor.preprocess import assemble_typographic_groups
 from extractor.landmarks import detect_landmarks
-from extractor.zones import partition_zones
 from extractor.semantic import reconstruct_semantics
 from extractor.models import AssemblyPolicy, ParticipationPolicy
 
@@ -158,56 +157,19 @@ def cmd_landmarks(args):
     
     report = context.landmark_report
     if report:
-        print(f"\nDetected {len(report.fences)} Structural Fences:")
-        for f in report.fences:
-            print(f"  [{f.fence_type.name}] conf={f.confidence_score:.2f} ({f.confidence_strength.name}) evidence={f.dominant_category.name}")
-            
-        print(f"\nDetected {len(report.anchors)} Document Anchors:")
-        for a in report.anchors:
-            print(f"  [{a.anchor_type.name}] conf={a.confidence_score:.2f} ({a.confidence_strength.name}) evidence={a.dominant_category.name}")
-            
-        print(f"\nAverage Confidence: {report.average_confidence:.2f}")
-
-    if inspector:
-        print("\n")
-        if getattr(args, 'telemetry_json', False):
-            print(inspector.export_json())
-        elif getattr(args, 'trace_group', None):
-            inspector.print_group_trace(args.trace_group)
-        else:
-            inspector.print_report()
-
-def cmd_zones(args):
-    print(f"Stage 3A.2 Zonal Partitioning for: {args.pdf_path}")
-    slug = os.path.splitext(os.path.basename(args.pdf_path))[0]
-    
-    context = ingest_pdf(args.pdf_path, slug)
-    
-    inspector = None
-    if getattr(args, 'telemetry', False) or getattr(args, 'telemetry_json', False) or getattr(args, 'trace_group', None):
-        from extractor.telemetry import EventBus
-        from extractor.inspector import Inspector
-        context.event_bus = EventBus()
-        context.telemetry_enabled = True
-        inspector = Inspector()
-        context.event_bus.subscribe(inspector.receive)
+        from extractor.models import LandmarkKind
         
-    context = normalize_context(context)
-    context = detect_publisher(context)
-    context = detect_layout(context)
-    context = detect_consensus(context)
-    
-    ordered_blocks = compute_reading_order(context)
-    context = assemble_typographic_groups(ordered_blocks, context)
-    context = detect_landmarks(context)
-    context = partition_zones(context)
-    
-    part = context.zonal_partition
-    if part:
-        print(f"\nDocument partitioned into {len(part.zones)} zones:")
-        for i, z in enumerate(part.zones):
-            print(f"  Zone {i}: {z.zone_type.name} (Groups {z.start_index} to {z.end_index - 1}, count={len(z.groups)})")
+        fences = [t for t in report.tokens if t.kind == LandmarkKind.OUTLIER]
+        anchors = [t for t in report.tokens if t.kind == LandmarkKind.ANCHOR]
+        
+        print(f"\nDetected {len(fences)} Structural Outliers:")
+        for f in fences:
+            print(f"  [OUTLIER] Group {f.group_id}")
             
+        print(f"\nDetected {len(anchors)} Document Anchors:")
+        for a in anchors:
+            print(f"  [ANCHOR] Group {a.group_id}")
+
     if inspector:
         print("\n")
         if getattr(args, 'telemetry_json', False):
@@ -216,6 +178,8 @@ def cmd_zones(args):
             inspector.print_group_trace(args.trace_group)
         else:
             inspector.print_report()
+
+
 
 def cmd_debug(args):
     print(f"Generating Debug PDF for: {args.pdf_path}")
@@ -236,16 +200,20 @@ def cmd_debug(args):
         print("\nStage 3A.2: Detecting landmarks for debug visualization...")
         context = detect_landmarks(context)
         
-    if args.zones or args.semantic:
-        print("\nStage 3A.2: Partitioning zones for debug visualization...")
-        context = partition_zones(context)
+
 
     if args.semantic:
         print("\nStage 3A.2: Reconstructing semantics for debug visualization...")
         context = reconstruct_semantics(context)
     
     print("\nStage 5: Generating Debug PDF...")
-    context = draw_debug_overlays(context, visualize_groups=args.groups or args.landmarks or args.zones or args.semantic, visualize_landmarks=args.landmarks, visualize_zones=args.zones, visualize_semantics=args.semantic)
+    context = draw_debug_overlays(
+        context, 
+        visualize_groups=args.groups or args.landmarks or args.zones or args.semantic, 
+        visualize_landmarks=args.landmarks, 
+        visualize_semantics=args.semantic,
+        visualize_audit=args.audit_evidence
+    )
     
     debug_log = next(log for log in reversed(context.audit_log) if log["action"] == "generate_debug_pdf")
     print(f"  Success: {debug_log.get('output_path')}")
@@ -273,17 +241,33 @@ def cmd_semantic(args):
     ordered_blocks = compute_reading_order(context)
     context = assemble_typographic_groups(ordered_blocks, context)
     context = detect_landmarks(context)
-    context = partition_zones(context)
+
     context = reconstruct_semantics(context)
     
-    blocks = context.semantic_blocks
-    if blocks:
-        print(f"\nDocument reconstructed into {len(blocks)} semantic blocks:")
-        type_counts = {}
-        for b in blocks:
-            type_counts[b.semantic_type.name] = type_counts.get(b.semantic_type.name, 0) + 1
-        for t, c in type_counts.items():
-            print(f"  {t}: {c} groups")
+    tree = context.semantic_tree
+    if tree:
+        def count_nodes(node):
+            return 1 + sum(count_nodes(child) for child in node.children)
+        print(f"\nDocument reconstructed into a Semantic Tree with {count_nodes(tree)} nodes:")
+        
+        def print_tree(node, depth=0):
+            indent = "  " * depth
+            text_preview = ""
+            if node.group:
+                text = node.group.display_text.replace("\n", " ").strip()
+                if len(text) > 50:
+                    text_preview = f" => \"{text[:47]}...\""
+                else:
+                    text_preview = f" => \"{text}\""
+            try:
+                print(f"{indent}- {node.node_type.name}{text_preview}")
+            except UnicodeEncodeError:
+                safe_text = text_preview.encode('ascii', 'replace').decode('ascii')
+                print(f"{indent}- {node.node_type.name}{safe_text}")
+            for child in node.children:
+                print_tree(child, depth + 1)
+                
+        print_tree(tree, depth=1)
             
     if inspector:
         print("\n")
@@ -316,6 +300,7 @@ def main():
     debug_parser.add_argument("--landmarks", action="store_true", help="Visualize Structural Fences and Document Anchors")
     debug_parser.add_argument("--zones", action="store_true", help="Visualize Zonal Partitioning")
     debug_parser.add_argument("--semantic", action="store_true", help="Visualize Semantic Reconstruction")
+    debug_parser.add_argument("--audit-evidence", action="store_true", help="Visualize hidden physical evidence (Audit Mode)")
     
     # assemble
     assemble_parser = subparsers.add_parser("assemble", help="Run Stage 1 Typographic Assembly")
@@ -327,10 +312,7 @@ def main():
     landmarks_parser = subparsers.add_parser("landmarks", help="Run Stage 3A.2 Landmark Detection")
     landmarks_parser.add_argument("pdf_path", help="Path to the PDF file")
     
-    # zones
-    zones_parser = subparsers.add_parser("zones", help="Run Stage 3A.2 Zonal Partitioning")
-    zones_parser.add_argument("pdf_path", help="Path to the PDF file")
-    
+
     # semantic
     semantic_parser = subparsers.add_parser("semantic", help="Run Stage 3A.2 Semantic Reconstruction")
     semantic_parser.add_argument("pdf_path", help="Path to the PDF file")
@@ -351,8 +333,7 @@ def main():
         cmd_assemble(args)
     elif args.command == "landmarks":
         cmd_landmarks(args)
-    elif args.command == "zones":
-        cmd_zones(args)
+
     elif args.command == "semantic":
         cmd_semantic(args)
 

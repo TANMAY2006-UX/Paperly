@@ -106,11 +106,8 @@ class ExtractionContext:
     # Output of Phase 3A.2 Step 1
     landmark_report: Optional['LandmarkReport'] = None
     
-    # Output of Phase 3A.2 Step 2
-    zonal_partition: Optional['ZonalPartition'] = None
-    
     # Output of Phase 3A (Semantic Reconstruction)
-    semantic_blocks: List['SemanticBlock'] = field(default_factory=list)
+    semantic_tree: Optional['SemanticNode'] = None
     
     # Telemetry
     telemetry_enabled: bool = False
@@ -142,6 +139,10 @@ class EvidenceVector:
     hyphen_evidence: float = 0.0
     total_confidence: float = 0.0
     reasoning_summary: str = ""
+    # Physical typography evidence migrated from TypographicGroup
+    physical_dominant_font: str = ""
+    physical_dominant_size: float = 0.0
+    physical_is_bold: bool = False
 
 class AssemblyPolicy(Enum):
     CONSERVATIVE = auto()  # Strongly prefers false negatives
@@ -174,10 +175,8 @@ class TypographicGroup:
     x1: float
     y1: float
     
-    # Typography
-    dominant_font: str
-    dominant_size: float
-    is_bold: bool
+    # Identity
+    typography_class: int     # The quantized visual equivalence class
     
     # Provenance
     source_blocks: List[TextBlock] = field(default_factory=list)
@@ -202,91 +201,55 @@ class StageQualityReport:
 
 # --- Phase 3A.2 Step 1: Landmark Detection Models ---
 
+class LandmarkKind(Enum):
+    ANCHOR = auto()  # Represents a global supremacy boundary (e.g., Title)
+    OUTLIER = auto()   # Represents a local discontinuity boundary (e.g., Header)
+
+@dataclass(slots=True)
+class LandmarkToken:
+    kind: LandmarkKind
+    group_id: str
+
+@dataclass(slots=True)
+class LandmarkReport:
+    tokens: List[LandmarkToken] = field(default_factory=list)
+
+# --- Dummies to prevent import errors in downstream files ---
 class FenceType(Enum):
-    ABSTRACT_HEADING = auto()
     SECTION_HEADING = auto()
+    ABSTRACT_HEADING = auto()
     REFERENCES_HEADING = auto()
     APPENDIX_HEADING = auto()
     ACKNOWLEDGEMENTS_HEADING = auto()
-
 class AnchorType(Enum):
     TITLE_CANDIDATE = auto()
     KEYWORDS_BLOCK = auto()
     CCS_CONCEPTS_BLOCK = auto()
     PUBLICATION_INFO = auto()
     CORRESPONDENCE_EMAIL = auto()
-
 class ConfidenceStrength(Enum):
     EXACT = auto()
-    HIGH = auto()
-    MEDIUM = auto()
-    LOW = auto()
-
 class EvidenceCategory(Enum):
     REGEX = auto()
     TYPOGRAPHY = auto()
     GEOMETRY = auto()
     POSITION = auto()
     COMPOSITE = auto()
-
-@dataclass(slots=True)
 class LandmarkEvidence:
-    category: EvidenceCategory
-    reason: str
-    score_delta: float
-
-@dataclass(slots=True)
+    pass
 class DetectedLandmark:
-    """Base class for Fences and Anchors"""
-    group_ids: List[str]
-    confidence_score: float
-    confidence_strength: ConfidenceStrength
-    dominant_category: EvidenceCategory
-    evidence_ledger: List[LandmarkEvidence] = field(default_factory=list)
-    page_num: int = -1
-    reading_order_start: int = -1
-    
-    # We do NOT store mutable text here. To get the text, resolve group_ids against ExtractionContext.assembled_groups.
+    pass
+class StructuralFence:
+    pass
+class DocumentAnchor:
+    pass
 
-@dataclass(slots=True)
-class StructuralFence(DetectedLandmark):
-    fence_type: FenceType = FenceType.SECTION_HEADING
-
-@dataclass(slots=True)
-class DocumentAnchor(DetectedLandmark):
-    anchor_type: AnchorType = AnchorType.TITLE_CANDIDATE
-
-@dataclass(slots=True)
-class LandmarkReport:
-    fences: List[StructuralFence]
-    anchors: List[DocumentAnchor]
-    average_confidence: float
-
-# --- Phase 3A.2 Step 2: Zonal Partitioning Models ---
-
-class ZoneType(Enum):
-    FRONT_MATTER = auto()
-    BODY = auto()
-    ACKNOWLEDGEMENTS = auto()
-    REFERENCES = auto()
-    APPENDIX = auto()
-    UNKNOWN = auto()
-
-@dataclass(slots=True)
-class DocumentZone:
-    zone_type: ZoneType
-    start_index: int
-    end_index: int
-    groups: List['TypographicGroup']
-
-@dataclass(slots=True)
-class ZonalPartition:
-    zones: List[DocumentZone] = field(default_factory=list)
-
-# --- Phase 3A.1: Semantic Reconstruction Models ---
+# --- Phase 3A (Semantic Reconstruction) Models ---
 
 
 class SemanticType(Enum):
+    DOCUMENT = auto()
+    SECTION = auto()
     TITLE = auto()
     AUTHORS = auto()
     AFFILIATIONS = auto()
@@ -304,60 +267,14 @@ class SemanticType(Enum):
     REFERENCES = auto()
     APPENDIX = auto()
     ACKNOWLEDGEMENTS = auto()
+    CAPTION = auto()
     NOISE = auto()
 
 @dataclass(slots=True)
-class SemanticBlock:
+class SemanticNode:
     """
-    A semantic annotation layered on top of a frozen TypographicGroup.
-    Never modifies the source group — only references it.
+    The atomic unit of the semantic tree.
     """
-    source_group: 'TypographicGroup'
-    semantic_type: SemanticType
-    confidence: float
-    reason: str
-    section_id: Optional[str] = None
-    reading_order: int = 0
-
-@dataclass(slots=True)
-class SectionNode:
-    """
-    A logical section of the paper, containing classified blocks.
-    """
-    section_id: str
-    heading: SemanticBlock
-    level: int
-    blocks: List[SemanticBlock] = field(default_factory=list)
-
-@dataclass(slots=True)
-class DocumentCorpus:
-    """
-    Document-level statistics computed in Pass 1.
-    """
-    body_font_size: float
-    body_font_name: str
-    title_font_size: float
-    is_bold_font: bool
-    running_header_set: set
-
-@dataclass(slots=True)
-class SemanticDocument:
-    """
-    The final output of Phase 3A.1.
-    """
-    slug: str
-    title: Optional[SemanticBlock]
-    authors: List[SemanticBlock]
-    affiliations: List[SemanticBlock]
-    abstract: Optional[SemanticBlock]
-    keywords: Optional[SemanticBlock]
-    sections: List[SectionNode]
-    figures: List[SemanticBlock]
-    tables: List[SemanticBlock]
-    equations: List[SemanticBlock]
-    footnotes: List[SemanticBlock]
-    references: List[SemanticBlock]
-    appendices: List[SectionNode]
-    acknowledgements: Optional[SemanticBlock]
-    reading_order: List[SemanticBlock]
-    audit_log: List[Dict[str, Any]]
+    node_type: SemanticType
+    group: Optional['TypographicGroup'] = None
+    children: List['SemanticNode'] = field(default_factory=list)
