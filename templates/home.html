@@ -1,24 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="view-transition" content="same-origin" />
   <title>PAPERLY</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
   <script>
+    // 0. Force scroll to top on refresh BEFORE body renders to prevent jumping
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    window.scrollTo(0, 0);
+
     // Prevent theme flash before render
-    if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       document.documentElement.setAttribute('data-theme', 'dark');
+    } else if (savedTheme === 'warm') {
+      document.documentElement.setAttribute('data-theme', 'warm');
     }
   </script>
 </head>
+
 <body class="fade-in">
   <!-- SPLASH SCREEN -->
   <div id="splash-screen">
     <div class="animation-container">
       <svg class="paper-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
         <!-- Background Paper (The Stack) -->
-        <path class="draw-path" d="M40,15 L80,15 L80,70" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" />
+        <path class="draw-path" d="M40,15 L80,15 L80,70" stroke-width="3" stroke-linejoin="round"
+          stroke-linecap="round" />
         <!-- Foreground Paper (Research Document) -->
         <path class="draw-path" d="M20,25 L55,25 L70,40 L70,85 L20,85 Z" stroke-width="3" stroke-linejoin="round" />
         <!-- Folded Corner Detail -->
@@ -36,15 +49,17 @@
   <div class="container">
     <!-- HEADER -->
     <header class="header">
-      <div class="logo">PAPERLY</div>
+      <a href="/" class="logo">PAPERLY</a>
       <div class="header-icons">
         <button id="theme-toggle" class="icon-btn" aria-label="Toggle dark mode">
-          <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
           </svg>
         </button>
         <button class="icon-btn" aria-label="User profile">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
             <circle cx="12" cy="7" r="4"></circle>
           </svg>
@@ -61,101 +76,59 @@
     <!-- SEARCH -->
     <section class="search-section">
       <div class="search-bar">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
-        <input type="text" placeholder="Search papers, topics, authors..." autofocus>
-        <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <input type="text" id="search-input" placeholder="Search papers, topics, authors..." autofocus
+          autocomplete="off">
+        <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="cursor: pointer;"
+          onclick="document.getElementById('search-input').focus()">
           <line x1="5" y1="12" x2="19" y2="12"></line>
           <polyline points="12 5 19 12 12 19"></polyline>
         </svg>
+        <button id="clear-search" class="clear-btn" aria-label="Clear search">&times;</button>
       </div>
       <p class="search-hint">Explore. Understand. Remember.</p>
+
+      <!-- EDITORIAL SEARCH RESULTS -->
+      <div id="editorial-search-results"></div>
     </section>
 
     <!-- SECTION 1: Browse by Category -->
     <section class="categories-section">
       <div class="section-header">
         <h2>Browse by Category</h2>
-        <a href="#" class="view-all">View all categories &rarr;</a>
       </div>
-      
+
       <div class="rail-wrapper" id="category-rail-wrapper">
         <div class="rail-mask-left"></div>
         <div class="rail-mask-right"></div>
-        
+
         <button class="rail-btn rail-btn-left" aria-label="Scroll left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" width="16" height="16">
             <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
         </button>
-        
+
         <div class="categories-rail" id="category-rail">
-          <!-- Card 1 -->
-          <a href="#" class="category-card">
+          {% for category in categories %}
+          <div class="category-card" data-category="{{ category.name | lower | escape }}">
             <div class="card-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line>
-              </svg>
+              {{ category.icon | safe }}
             </div>
-            <h3>Artificial Intelligence</h3>
-            <div class="card-count">10 papers</div>
-          </a>
-          <!-- Card 2 -->
-          <a href="#" class="category-card">
-            <div class="card-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-              </svg>
-            </div>
-            <h3>Computer Networks</h3>
-            <div class="card-count">8 papers</div>
-          </a>
-          <!-- Card 3 -->
-          <a href="#" class="category-card">
-            <div class="card-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
-              </svg>
-            </div>
-            <h3>Databases</h3>
-            <div class="card-count">8 papers</div>
-          </a>
-          <!-- Card 4 -->
-          <a href="#" class="category-card">
-            <div class="card-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line>
-              </svg>
-            </div>
-            <h3>Systems &amp; OS</h3>
-            <div class="card-count">8 papers</div>
-          </a>
-          <!-- Card 5 -->
-          <a href="#" class="category-card">
-            <div class="card-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle>
-              </svg>
-            </div>
-            <h3>HCI &amp; Design</h3>
-            <div class="card-count">8 papers</div>
-          </a>
-          <!-- Card 6 -->
-          <a href="#" class="category-card">
-            <div class="card-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-              </svg>
-            </div>
-            <h3>Personal Collection</h3>
-            <div class="card-count">5 papers</div>
-          </a>
+            <h3>{{ category.name }}</h3>
+            <div class="card-count">{{ category.count }} paper{% if category.count != 1 %}s{% endif %}</div>
+          </div>
+          {% endfor %}
         </div>
 
         <button class="rail-btn rail-btn-right" aria-label="Scroll right">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" width="16" height="16">
             <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
         </button>
@@ -165,95 +138,44 @@
     <!-- SECTION 2: Most Read Papers -->
     <section class="papers-section">
       <div class="section-header">
-        <h2>Most Read Papers</h2>
-        <a href="#" class="view-all">View all papers &rarr;</a>
+        <h2 id="library-heading">Essential Reading</h2>
+        <button id="reset-category-btn" class="view-all" style="display: none;">Reset filter &times;</button>
       </div>
-      <div class="papers-list">
-        <!-- Paper 1 -->
-        <a href="#" class="paper-row">
-          <div class="paper-number">01</div>
+      <div class="papers-list" id="original-papers-list">
+        <div id="empty-state-msg" style="display: none;" class="empty-state-message">
+          <p>No papers available in this category yet.</p>
+        </div>
+        {% if papers %}
+        {% for paper in papers %}
+        <!-- Paper {{ loop.index }} -->
+        <button onclick="animateTo(`{{ url_for('paper_reader', slug=paper.slug) }}`)" class="paper-row"
+          data-slug="{{ paper.slug }}" data-title="{{ paper.title | lower | escape }}"
+          data-authors="{{ paper.authors | join(' ') | lower | escape }}"
+          data-venue="{{ paper.venue | lower | escape }}" data-year="{{ paper.year }}"
+          data-category="{{ paper.category | lower | escape }}"
+          data-keywords="{{ paper.keywords | join(' ') | lower | escape }}">
+          <div class="paper-number">{{ "%02d" | format(loop.index) }}</div>
           <div class="paper-info">
-            <h3>Attention Is All You Need</h3>
-            <p>Ashish Vaswani, Noam Shazeer, Niki Parmar, et al.</p>
+            <h3>{{ paper.title }}</h3>
+            <p>
+              {% if paper.authors|length > 3 %}
+              {{ paper.authors[0] }}, {{ paper.authors[1] }}, {{ paper.authors[2] }}, et al.
+              {% else %}
+              {{ paper.authors | join(', ') }}
+              {% endif %}
+            </p>
           </div>
           <div class="paper-meta">
-            <span>2017</span>
-            <span>18 min read</span>
-            <button class="bookmark-btn" aria-label="Bookmark">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-              </svg>
-            </button>
+            <span>{{ paper.year }}</span>
+            <span>{{ paper.reading_time_minutes }} min read</span>
           </div>
-        </a>
-        <!-- Paper 2 -->
-        <a href="#" class="paper-row">
-          <div class="paper-number">02</div>
-          <div class="paper-info">
-            <h3>BERT: Pre-training of Deep Bidirectional Transformers</h3>
-            <p>Jacob Devlin, Ming-Wei Chang, Kenton Lee, et al.</p>
-          </div>
-          <div class="paper-meta">
-            <span>2018</span>
-            <span>22 min read</span>
-            <button class="bookmark-btn" aria-label="Bookmark">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-              </svg>
-            </button>
-          </div>
-        </a>
-        <!-- Paper 3 -->
-        <a href="#" class="paper-row">
-          <div class="paper-number">03</div>
-          <div class="paper-info">
-            <h3>Language Models are Few-Shot Learners (GPT-3)</h3>
-            <p>Tom B. Brown, Benjamin Mann, Nick Ryder, et al.</p>
-          </div>
-          <div class="paper-meta">
-            <span>2020</span>
-            <span>27 min read</span>
-            <button class="bookmark-btn" aria-label="Bookmark">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-              </svg>
-            </button>
-          </div>
-        </a>
-        <!-- Paper 4 -->
-        <a href="#" class="paper-row">
-          <div class="paper-number">04</div>
-          <div class="paper-info">
-            <h3>BigTable: A Distributed Storage System for Structured Data</h3>
-            <p>Fay Chang, Jeffrey Dean, Sanjay Ghemawat, et al.</p>
-          </div>
-          <div class="paper-meta">
-            <span>2006</span>
-            <span>16 min read</span>
-            <button class="bookmark-btn" aria-label="Bookmark">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-              </svg>
-            </button>
-          </div>
-        </a>
-        <!-- Paper 5 -->
-        <a href="#" class="paper-row">
-          <div class="paper-number">05</div>
-          <div class="paper-info">
-            <h3>MapReduce: Simplified Data Processing on Large Clusters</h3>
-            <p>Jeffrey Dean, Sanjay Ghemawat</p>
-          </div>
-          <div class="paper-meta">
-            <span>2004</span>
-            <span>14 min read</span>
-            <button class="bookmark-btn" aria-label="Bookmark">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-              </svg>
-            </button>
-          </div>
-        </a>
+        </button>
+        {% endfor %}
+        {% else %}
+        <div style="padding: 3rem 0; text-align: center; color: var(--text-secondary); font-style: italic;">
+          No papers available yet.
+        </div>
+        {% endif %}
       </div>
     </section>
 
@@ -265,6 +187,7 @@
           <p class="quote-text">What I cannot create, I do not understand.</p>
           <p class="quote-author">— Richard Feynman</p>
         </div>
+        <span class="quote-mark quote-mark-end">”</span>
       </div>
       <div class="quote-dots" id="quote-dots">
         <span data-index="0" class="active"></span>
@@ -276,7 +199,7 @@
     <!-- FOOTER -->
     <footer class="footer">
       <div class="footer-top">
-        <h3 class="footer-brand">PAPERLY</h3>
+        <a href="/" class="footer-brand" style="display:block;">PAPERLY</a>
         <p class="footer-manifesto">Built for people who still enjoy reading ideas slowly.</p>
       </div>
       <div class="footer-bottom">
@@ -288,11 +211,28 @@
   </div>
 
   <script>
+    // Global Navigation Animator
+    function animateTo(url) {
+      document.body.classList.add('page-transitioning');
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          window.location.href = url;
+        }, 400); // Increased slightly for a more elegant, relaxed fade
+      });
+    }
+
+    // Handle bfcache (browser back/forward button) so the page doesn't stay faded out
+    window.addEventListener('pageshow', (event) => {
+      if (event.persisted) {
+        document.body.classList.remove('page-transitioning');
+      }
+    });
+
     document.addEventListener("DOMContentLoaded", () => {
       // 1. Splash Screen Logic
       const splashScreen = document.getElementById('splash-screen');
       const hasVisited = sessionStorage.getItem('hasVisitedSplash');
-      
+
       if (hasVisited) {
         // Skip splash entirely for returning users
         splashScreen.classList.add('skip');
@@ -304,29 +244,48 @@
         }, 3500); // 1.5s draw + 1s text fade + 1s buffer
       }
 
-      // 2. Dark Mode Toggle
+      // 2. Theme Cycle Logic
       const themeToggle = document.getElementById('theme-toggle');
       const root = document.documentElement;
-      
-      const updateIcon = (isDark) => {
-        themeToggle.innerHTML = isDark ? 
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>' : 
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+
+      const icons = {
+        light: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>',
+        warm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 4h.01"/><path d="M20 12h.01"/><path d="M12 20h.01"/><path d="M4 12h.01"/><path d="M17.657 6.343h.01"/><path d="M17.657 17.657h.01"/><path d="M6.343 17.657h.01"/><path d="M6.343 6.343h.01"/></svg>',
+        dark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>'
       };
 
-      updateIcon(root.getAttribute('data-theme') === 'dark');
+      const updateIcon = (theme) => {
+        // Show icon for the NEXT theme in the cycle
+        if (theme === 'light') {
+          themeToggle.innerHTML = icons.warm;
+          themeToggle.setAttribute('title', 'Switch to Warm mode');
+        } else if (theme === 'warm') {
+          themeToggle.innerHTML = icons.dark;
+          themeToggle.setAttribute('title', 'Switch to Dark mode');
+        } else {
+          themeToggle.innerHTML = icons.light;
+          themeToggle.setAttribute('title', 'Switch to Light mode');
+        }
+      };
+
+      const currentTheme = root.getAttribute('data-theme') || 'light';
+      updateIcon(currentTheme);
 
       themeToggle.addEventListener('click', () => {
-        const isDark = root.getAttribute('data-theme') === 'dark';
-        if (isDark) {
+        const theme = root.getAttribute('data-theme') || 'light';
+        let nextTheme = 'light';
+
+        if (theme === 'light') nextTheme = 'warm';
+        else if (theme === 'warm') nextTheme = 'dark';
+
+        if (nextTheme === 'light') {
           root.removeAttribute('data-theme');
-          localStorage.setItem('theme', 'light');
-          updateIcon(false);
         } else {
-          root.setAttribute('data-theme', 'dark');
-          localStorage.setItem('theme', 'dark');
-          updateIcon(true);
+          root.setAttribute('data-theme', nextTheme);
         }
+
+        localStorage.setItem('theme', nextTheme);
+        updateIcon(nextTheme);
       });
 
       // 3. Category Rail Scroll Logic
@@ -338,21 +297,21 @@
       const updateRailState = () => {
         const canScrollLeft = rail.scrollLeft > 0;
         const canScrollRight = Math.ceil(rail.scrollLeft) < (rail.scrollWidth - rail.clientWidth);
-        
+
         wrapper.classList.toggle('can-scroll-left', canScrollLeft);
         wrapper.classList.toggle('can-scroll-right', canScrollRight);
-        
+
         btnLeft.classList.toggle('can-scroll', canScrollLeft);
         btnRight.classList.toggle('can-scroll', canScrollRight);
       };
 
       rail.addEventListener('scroll', updateRailState);
       window.addEventListener('resize', updateRailState);
-      
+
       btnLeft.addEventListener('click', () => {
         rail.scrollBy({ left: -300, behavior: 'smooth' });
       });
-      
+
       btnRight.addEventListener('click', () => {
         rail.scrollBy({ left: 300, behavior: 'smooth' });
       });
@@ -365,20 +324,20 @@
         { text: "Computer science is no more about computers than astronomy is about telescopes.", author: "Edsger W. Dijkstra" },
         { text: "The most profoundly disruptive technologies are the ones that disappear.", author: "Mark Weiser" }
       ];
-      
+
       let currentQuoteIndex = 0;
       const quoteContent = document.getElementById('quote-content');
       const quoteDots = document.querySelectorAll('#quote-dots span');
-      
+
       const transitionQuote = (newIndex) => {
         if (newIndex === currentQuoteIndex) return;
-        
+
         quoteDots[currentQuoteIndex].classList.remove('active');
         currentQuoteIndex = newIndex;
         quoteDots[currentQuoteIndex].classList.add('active');
-        
+
         quoteContent.classList.add('fade-out');
-        
+
         setTimeout(() => {
           quoteContent.innerHTML = `
             <p class="quote-text">${quotes[currentQuoteIndex].text}</p>
@@ -401,9 +360,347 @@
         const nextIndex = (currentQuoteIndex + 1) % quotes.length;
         transitionQuote(nextIndex);
       };
-      
+
       let quoteInterval = setInterval(autoRotateQuote, 8000);
+
+      // 5. Editorial Focus Mode (Phase 4.4 - Component Contract Implementation)
+
+      // Layer 1: Search State
+      class SearchState {
+        constructor() {
+          this.currentQuery = '';
+          this.subscribers = [];
+        }
+
+        subscribe(callback) {
+          this.subscribers.push(callback);
+        }
+
+        setQuery(query) {
+          const wasEmpty = this.currentQuery.trim() === '';
+          const isEmpty = query.trim() === '';
+          this.currentQuery = query;
+
+          if (!isEmpty && wasEmpty) {
+            // Entering search mode
+            const scrollY = window.scrollY;
+            document.body.style.position = 'fixed';
+            document.body.style.top = `-${scrollY}px`;
+            document.body.style.width = '100%';
+            document.body.classList.add('is-searching');
+
+            // Dynamic Viewport-Aware Zenith Transform
+            const header = document.querySelector('.header');
+            const searchSection = document.querySelector('.search-section');
+
+            const headerBottom = header ? header.getBoundingClientRect().bottom : 0;
+            // Dock below header if visible, otherwise 32px from viewport top
+            const targetY = Math.max(32, headerBottom);
+            const currentY = searchSection.getBoundingClientRect().top;
+
+            const shift = targetY - currentY;
+            searchSection.style.transform = `translateY(${shift}px)`;
+
+          } else if (isEmpty && !wasEmpty) {
+            // Exiting search mode
+            const scrollY = document.body.style.top;
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.width = '';
+            window.scrollTo(0, parseInt(scrollY || '0') * -1);
+
+            document.body.classList.remove('is-searching');
+            const searchSection = document.querySelector('.search-section');
+            if (searchSection) searchSection.style.transform = '';
+          }
+
+          this.notify();
+        }
+
+        notify() {
+          this.subscribers.forEach(cb => cb(this));
+        }
+      }
+
+      // Layer 2: Filtering Engine
+      class FilteringEngine {
+        constructor(papers) {
+          this.papers = papers;
+          this.subscribers = [];
+        }
+
+        subscribe(callback) {
+          this.subscribers.push(callback);
+        }
+
+        processStateUpdate(state) {
+          const query = state.currentQuery.toLowerCase().trim();
+
+          if (query === '') {
+            this.notify({ query: '', matches: [] }); // Clear results
+            return;
+          }
+
+          const matches = this.papers.filter(paper => {
+            return (
+              paper.title.toLowerCase().includes(query) ||
+              paper.author.toLowerCase().includes(query) ||
+              paper.year.includes(query)
+            );
+          });
+
+          this.notify({ query: state.currentQuery, matches: matches });
+        }
+
+        notify(data) {
+          this.subscribers.forEach(cb => cb(data));
+        }
+      }
+
+      // Layer 3: Renderer
+      class Renderer {
+        constructor(containerId) {
+          this.container = document.getElementById(containerId);
+        }
+
+        highlightText(text, query) {
+          if (!query || query.trim() === '') return text;
+          const safeQuery = query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`(${safeQuery})`, 'gi');
+          return text.replace(regex, '<span class="highlight-match">$1</span>');
+        }
+
+        renderMatches(data) {
+          const { query, matches } = data;
+
+          if (query.trim() === '') {
+            this.container.innerHTML = '';
+            return;
+          }
+
+          if (matches.length === 0) {
+            this.container.innerHTML = `<div class="editorial-empty-state">No papers found for '${query}'</div>`;
+            return;
+          }
+
+          const limit = Math.min(matches.length, 10);
+
+          // Editorial indicator of total matches
+          const countText = matches.length === 1 ? '1 paper' : `${matches.length} papers`;
+          let html = `<div class="editorial-results-count">${countText}</div>`;
+
+          for (let i = 0; i < limit; i++) {
+            const match = matches[i];
+            const highlightedTitle = this.highlightText(match.originalTitle, query);
+            const highlightedAuthor = this.highlightText(match.originalAuthor, query);
+
+            html += `
+              <div onclick="animateTo('${match.slug}')" class="editorial-result-row" style="cursor: pointer;">
+                <div class="editorial-result-title">${highlightedTitle}</div>
+                <div class="editorial-result-meta">${highlightedAuthor} • ${match.year}</div>
+              </div>
+            `;
+          }
+
+          if (matches.length > 10) {
+            html += `<a href="#" class="editorial-view-all">View all ${matches.length} results for '${query}' &rarr;</a>`;
+          }
+
+          this.container.innerHTML = html;
+        }
+      }
+
+      class InteractionController {
+        constructor(inputId, state, filteringEngine) {
+          this.input = document.getElementById(inputId);
+          this.clearBtn = document.getElementById('clear-search');
+          this.state = state;
+          this.filteringEngine = filteringEngine;
+          this.activeIndex = -1;
+          this.currentMatches = [];
+
+          if (this.filteringEngine) {
+            this.filteringEngine.subscribe((data) => {
+              this.currentMatches = data.matches || [];
+              this.activeIndex = -1;
+            });
+          }
+          this.init();
+        }
+
+        init() {
+          this.input.addEventListener('input', (e) => {
+            this.state.setQuery(e.target.value);
+          });
+
+          this.input.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+              this.clearSearch();
+              e.preventDefault();
+            } else if (e.key === 'ArrowDown') {
+              this.navigate(1);
+              e.preventDefault();
+            } else if (e.key === 'ArrowUp') {
+              this.navigate(-1);
+              e.preventDefault();
+            } else if (e.key === 'Enter') {
+              this.handleEnter();
+              e.preventDefault();
+            }
+          });
+
+          if (this.clearBtn) {
+            this.clearBtn.addEventListener('click', () => {
+              this.clearSearch();
+            });
+          }
+        }
+
+        navigate(direction) {
+          if (!this.currentMatches || this.currentMatches.length === 0) return;
+          const limit = Math.min(this.currentMatches.length, 10);
+
+          this.activeIndex += direction;
+          if (this.activeIndex >= limit) {
+            this.activeIndex = 0;
+          } else if (this.activeIndex < 0) {
+            this.activeIndex = limit - 1;
+          }
+
+          this.updateSelection();
+        }
+
+        updateSelection() {
+          const rows = document.querySelectorAll('.editorial-result-row');
+          rows.forEach((row, index) => {
+            if (index === this.activeIndex) {
+              row.classList.add('is-selected');
+              row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+              row.classList.remove('is-selected');
+            }
+          });
+        }
+
+        handleEnter() {
+          if (!this.currentMatches || this.currentMatches.length === 0) return;
+          const limit = Math.min(this.currentMatches.length, 10);
+
+          if (this.activeIndex >= 0 && this.activeIndex < limit) {
+            animateTo(this.currentMatches[this.activeIndex].slug);
+          } else {
+            // First enter press selects the top result
+            this.activeIndex = 0;
+            this.updateSelection();
+          }
+        }
+
+        clearSearch() {
+          this.input.value = '';
+          this.state.setQuery('');
+          this.input.blur();
+        }
+      }
+
+      // Initialization & Data Hydration
+      const originalRows = Array.from(document.querySelectorAll('#original-papers-list .paper-row'));
+      const searchIndex = originalRows.map(row => {
+        const titleAttr = row.getAttribute('data-title') || '';
+        const year = row.getAttribute('data-year') || '';
+        const slugAttr = row.getAttribute('data-slug');
+        const slug = slugAttr ? '/papers/' + slugAttr : '#';
+
+        // Extract display strings from DOM to ensure editorial fidelity
+        const originalTitle = row.querySelector('.paper-info h3')?.textContent || titleAttr;
+        const originalAuthor = row.querySelector('.paper-info p')?.textContent.trim() || '';
+
+        return {
+          title: titleAttr,
+          author: originalAuthor,
+          year: year,
+          originalTitle: originalTitle,
+          originalAuthor: originalAuthor,
+          slug: slug
+        };
+      });
+
+      const searchState = new SearchState();
+      const filteringEngine = new FilteringEngine(searchIndex);
+      const renderer = new Renderer('editorial-search-results');
+      const interactionController = new InteractionController('search-input', searchState, filteringEngine);
+
+      // Bind the component contract flow
+      searchState.subscribe(state => filteringEngine.processStateUpdate(state));
+      filteringEngine.subscribe(matches => renderer.renderMatches(matches));
+
+      // 6. Category Filtering Logic
+      const categoryCards = document.querySelectorAll('.category-card');
+      const libraryHeading = document.getElementById('library-heading');
+      const emptyStateMsg = document.getElementById('empty-state-msg');
+      const resetCategoryBtn = document.getElementById('reset-category-btn');
+      let activeCategory = null;
+
+      const applyCategoryFilter = (targetCategory, cardElement) => {
+        // Toggle off if already active
+        if (activeCategory === targetCategory) {
+          activeCategory = null;
+          if (cardElement) cardElement.classList.remove('active');
+          libraryHeading.textContent = "Essential Reading";
+          resetCategoryBtn.style.display = 'none';
+        } else {
+          categoryCards.forEach(c => c.classList.remove('active'));
+          activeCategory = targetCategory;
+          if (cardElement) cardElement.classList.add('active');
+          libraryHeading.textContent = cardElement ? cardElement.querySelector('h3').textContent : "Essential Reading";
+          resetCategoryBtn.style.display = 'block';
+        }
+
+        // Filter paper rows
+        let visibleCount = 0;
+        originalRows.forEach(row => {
+          const rowCat = row.getAttribute('data-category');
+          if (!activeCategory || rowCat === activeCategory) {
+            row.style.display = 'flex';
+            visibleCount++;
+          } else {
+            row.style.display = 'none';
+          }
+        });
+
+        // Empty state handling
+        if (visibleCount === 0) {
+          emptyStateMsg.style.display = 'block';
+        } else {
+          emptyStateMsg.style.display = 'none';
+        }
+      };
+
+      categoryCards.forEach(card => {
+        card.addEventListener('click', (e) => {
+          e.preventDefault();
+          const targetCategory = card.getAttribute('data-category');
+          applyCategoryFilter(targetCategory, card);
+
+          // Auto-scroll to show the heading and sneak peek of papers
+          if (activeCategory) {
+            const railWrapper = document.getElementById('category-rail-wrapper');
+            const yOffset = -20; // 20px above the rail
+            const y = railWrapper.getBoundingClientRect().top + window.pageYOffset + yOffset;
+            window.scrollTo({ top: y, behavior: 'smooth' });
+          }
+        });
+      });
+
+      if (resetCategoryBtn) {
+        resetCategoryBtn.addEventListener('click', () => {
+          if (activeCategory) {
+            applyCategoryFilter(activeCategory, document.querySelector(`.category-card[data-category="${activeCategory}"]`));
+          }
+        });
+      }
+
     });
   </script>
 </body>
+
 </html>

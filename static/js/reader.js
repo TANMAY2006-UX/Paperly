@@ -1,14 +1,62 @@
 document.addEventListener('DOMContentLoaded', () => {
 
+    // --- 0. BACK BUTTON (PRESERVE SCROLL & ANIMATE) ---
+    const backBtn = document.querySelector('.back-home-btn');
+    if (backBtn) {
+        backBtn.addEventListener('click', (e) => {
+            if (document.referrer && document.referrer.includes(window.location.host)) {
+                e.preventDefault();
+                document.body.classList.add('page-transitioning');
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        window.history.back();
+                    }, 400);
+                });
+            }
+        });
+    }
+
+    // Handle bfcache so the page doesn't stay faded out if navigated via browser buttons
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) {
+            document.body.classList.remove('page-transitioning');
+        }
+    });
+
+    // --- 0.5. PREVENT HASH HISTORY POLLUTION ---
+    // If users click internal links (e.g. references), don't push to history.
+    // This ensures history.back() always goes straight to the home page!
+    document.addEventListener('click', (e) => {
+        const link = e.target.closest('a');
+        if (link) {
+            const href = link.getAttribute('href');
+            if (href && href.startsWith('#') && href.length > 1) {
+                e.preventDefault();
+                const targetId = href.substring(1);
+                const targetEl = document.getElementById(targetId);
+                if (targetEl) {
+                    // Smooth scroll to target
+                    targetEl.scrollIntoView({ behavior: 'smooth' });
+                    // Update URL without polluting history stack
+                    window.history.replaceState(null, '', href);
+                }
+            }
+        }
+    });
+
     // --- 1. THEME SYSTEM & FONT SIZES (Internals kept) ---
     const root = document.documentElement;
 
     // Handle Theme Switching
     const themeBtns = document.querySelectorAll('.theme-btn');
-    const applyTheme = (themeClass) => {
-        root.className = themeClass; // Reset classes and set theme
-        localStorage.setItem('reader_theme', themeClass);
-        themeBtns.forEach(b => b.classList.toggle('active', b.dataset.theme === themeClass));
+    const applyTheme = (themeValue) => {
+        if (themeValue === 'light') {
+            root.removeAttribute('data-theme');
+        } else {
+            root.setAttribute('data-theme', themeValue);
+        }
+        localStorage.setItem('theme', themeValue);
+        themeBtns.forEach(b => b.classList.toggle('active', b.dataset.theme === themeValue));
     };
 
     themeBtns.forEach(btn => {
@@ -28,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Initialize Preferences from localStorage
-    const savedTheme = localStorage.getItem('reader_theme') || 'theme-paper';
+    const savedTheme = localStorage.getItem('theme') || 'warm';
     applyTheme(savedTheme);
     const savedFontSize = localStorage.getItem('reader_font_size') || '18px';
     applyFontSize(savedFontSize);
@@ -101,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Initialize TOC state
-    const savedToc = localStorage.getItem('reader_toc_collapsed') || 'expanded';
+    const savedToc = localStorage.getItem('reader_toc_collapsed') || (window.innerWidth <= 1024 ? 'collapsed' : 'expanded');
     setTocState(savedToc);
 
     // Mobile Drawer
@@ -210,25 +258,44 @@ document.addEventListener('DOMContentLoaded', () => {
     let deepestSectionIndex = -1;
     const totalWords = parseInt(document.body.getAttribute('data-total-words')) || 0;
     const progressWhisper = document.getElementById('progress-whisper');
+    
+    // --- Initial Fullscreen Hint ---
+    if (progressWhisper) {
+        setTimeout(() => {
+            if (!progressWhisper.classList.contains('visible')) {
+                progressWhisper.textContent = "Press 'F' for Fullscreen";
+                progressWhisper.classList.add('visible');
+                
+                setTimeout(() => {
+                    if (progressWhisper.textContent === "Press 'F' for Fullscreen") {
+                        progressWhisper.classList.remove('visible');
+                    }
+                }, 5000);
+            }
+        }, 1500);
+    }
+
     let lastRemainingTime = null;
     let whisperTimeout = null;
 
     const updateReadingProgress = () => {
-        let wordsRead = 0;
-        for (let i = 0; i <= deepestSectionIndex; i++) {
-            wordsRead += parseInt(sections[i].getAttribute('data-words')) || 0;
+        let remainingTime = 0;
+        
+        // Sum the pre-calculated estimated time of all sections we haven't reached yet
+        // Starting at deepestSectionIndex ensures the current section's time is only deducted AFTER you finish it
+        for (let i = deepestSectionIndex; i < sections.length; i++) {
+            remainingTime += parseInt(sections[i].getAttribute('data-time')) || 0;
         }
-        
-        let remainingWords = totalWords - wordsRead;
-        if (remainingWords < 0) remainingWords = 0;
-        
-        const remainingTime = Math.ceil(remainingWords / 200);
         
         if (progressWhisper && remainingTime !== lastRemainingTime) {
             if (lastRemainingTime !== null) {
                 // Only show whisper if it's not the initial load
-                const minText = remainingTime === 1 ? 'min' : 'mins';
-                progressWhisper.textContent = `${remainingTime} ${minText} remaining`;
+                if (remainingTime <= 0) {
+                    progressWhisper.textContent = 'Finished';
+                } else {
+                    const minText = remainingTime === 1 ? 'min' : 'mins';
+                    progressWhisper.textContent = `${remainingTime} ${minText} remaining`;
+                }
                 progressWhisper.classList.add('visible');
                 
                 clearTimeout(whisperTimeout);

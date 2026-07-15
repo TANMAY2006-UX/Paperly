@@ -116,14 +116,19 @@ def reconstruct_semantics(context: ExtractionContext) -> ExtractionContext:
                 
         elif state == ParserState.FRONT_MATTER_PARSE:
             if is_outlier:
-                if text_lower.startswith("abstract"):
+                if re.match(r'^(?:\d+\.?\s*)?abstract\b', text_lower, re.IGNORECASE):
                     abs_node = SemanticNode(node_type=SemanticType.ABSTRACT, group=group)
                     root.children.append(abs_node)
                     section_stack.append(abs_node)
-                else:
-                    # An OUTLIER in front matter that is NOT abstract implies start of BODY
+                    continue
+                elif section_stack[-1].node_type == SemanticType.ABSTRACT or re.match(r'^(?:\d+\.?|[IVXLCDM]+\.?)\s+', text_lower) or re.match(r'^(?:introduction|background|motivation)\b', text_lower):
+                    # An OUTLIER in front matter that is structurally verified implies start of BODY
                     state = ParserState.BODY_PARSE
                     # Re-evaluate this group under BODY_PARSE rules
+                else:
+                    # An unproven OUTLIER defaults to AUTHORS fallback
+                    section_stack[-1].children.append(SemanticNode(node_type=SemanticType.AUTHORS, group=group))
+                    continue
             else:
                 if section_stack[-1].node_type == SemanticType.ABSTRACT:
                     section_stack[-1].children.append(SemanticNode(node_type=SemanticType.PARAGRAPH, group=group))

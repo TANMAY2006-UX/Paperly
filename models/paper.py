@@ -19,18 +19,21 @@ class Paper:
         self.figures = {f['id']: f for f in json_content.get('figures', [])}
         self.tables = []
         self.visuals = []
-        self.sections = self._process_sections(json_content.get('sections', []))
+        self.sections, self.supplementary_sections = self._process_sections(json_content.get('sections', []))
         self.total_word_count = sum(s.get('word_count', 0) for s in self.sections)
-        self.reading_time_minutes = math.ceil(self.total_word_count / 200)
+        self.reading_time_minutes = db_row['reading_time_minutes']
         self.references = json_content.get('references', []) # Future-proofing
 
     def _process_sections(self, raw_sections):
         processed = []
+        supplementary = []
         references_section = None
+        in_supplementary = False
 
         for index, section in enumerate(raw_sections):
             if section.get('title') == 'References':
                 references_section = section
+                in_supplementary = True
                 continue
                 
             # Create a URL-safe ID if not present
@@ -54,10 +57,21 @@ class Paper:
             
             section['content'] = self._parse_content(raw_content)
             
-            processed.append(section)
+            if in_supplementary:
+                supplementary.append(section)
+            else:
+                processed.append(section)
             
         # Second pass: compute has_children and parent_id
-        for i, section in enumerate(processed):
+        self._compute_hierarchy(processed)
+        self._compute_hierarchy(supplementary)
+            
+        self.structured_references = self._parse_references(references_section) if references_section else []
+        
+        return processed, supplementary
+
+    def _compute_hierarchy(self, sections_list):
+        for i, section in enumerate(sections_list):
             level = section['data_level']
             number = str(section.get('number', ''))
             
@@ -69,24 +83,20 @@ class Paper:
             elif level > 1:
                 # Fallback for sections without numbers
                 for j in range(i - 1, -1, -1):
-                    if processed[j]['data_level'] == level - 1:
-                        parent_id = processed[j]['id']
+                    if sections_list[j]['data_level'] == level - 1:
+                        parent_id = sections_list[j]['id']
                         break
             section['parent_id'] = parent_id
             
             # 2. has_children
             has_children = False
-            for j in range(i + 1, len(processed)):
-                if processed[j]['data_level'] <= level:
+            for j in range(i + 1, len(sections_list)):
+                if sections_list[j]['data_level'] <= level:
                     break
-                if processed[j]['data_level'] == level + 1:
+                if sections_list[j]['data_level'] == level + 1:
                     has_children = True
                     break
             section['has_children'] = has_children
-            
-        self.structured_references = self._parse_references(references_section) if references_section else []
-        
-        return processed
 
     def _parse_content(self, raw_content):
         # Basic markdown bold/italic
@@ -251,6 +261,31 @@ class Paper:
         # Sort by number to be safe
         references.sort(key=lambda x: x['number'])
         return references
+
+    @classmethod
+    def get_all(cls):
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, title, authors, year, venue, reading_time_minutes, category, keywords, added_at FROM papers ORDER BY added_at DESC")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        papers = []
+        for row in rows:
+            papers.append({
+                'id': row['id'],
+                'slug': row['id'],
+                'title': row['title'],
+                'authors': json.loads(row['authors']) if row['authors'] else [],
+                'year': row['year'],
+                'venue': row['venue'],
+                'reading_time_minutes': row['reading_time_minutes'],
+                'category': row['category'],
+                'keywords': json.loads(row['keywords']) if row['keywords'] else [],
+                'added_at': row['added_at']
+            })
+            
+        return papers
 
     @staticmethod
     def get_by_slug(slug):

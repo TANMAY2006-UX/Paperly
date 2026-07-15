@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="view-transition" content="same-origin" />
     <title>{{ paper.title }} - PAPERLY</title>
     <!-- Fonts -->
     <link rel="stylesheet"
@@ -16,9 +17,9 @@
 
     <script>
         // Apply theme and font size immediately to prevent FOUC
-        const savedTheme = localStorage.getItem('reader_theme') || 'theme-paper';
+        const savedTheme = localStorage.getItem('theme') || 'warm'; // Default to warm
+        if (savedTheme !== 'light') document.documentElement.setAttribute('data-theme', savedTheme);
         const savedFontSize = localStorage.getItem('reader_font_size') || '18px';
-        document.documentElement.className = savedTheme;
         document.documentElement.style.setProperty('--reading-font-size', savedFontSize);
     </script>
 </head>
@@ -31,16 +32,27 @@
     </button>
 
     <div class="reader-layout">
-        <!-- Left: Collapsible TOC -->
-        <aside class="reader-toc" id="toc-sidebar">
-            <div class="toc-header">
-                <button id="toc-toggle" class="toc-toggle-btn surface-control" aria-label="Toggle Table of Contents">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-icon lucide-list"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg>
-                </button>
-            </div>
+        <!-- Floating Left Controls -->
+        <div class="reader-controls-left">
+            <a href="/" class="surface-control back-home-btn" aria-label="Back to Library">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left-icon lucide-arrow-left"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+            </a>
+            <button id="toc-toggle" class="toc-toggle-btn surface-control" aria-label="Toggle Table of Contents">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-icon lucide-list"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg>
+            </button>
+        </div>
 
+        <!-- Left: Collapsible TOC -->
+        <script>
+            const tocState = localStorage.getItem('reader_toc_collapsed') || (window.innerWidth <= 1024 ? 'collapsed' : 'expanded');
+            document.write('<aside class="reader-toc ' + (tocState === 'collapsed' ? 'collapsed' : '') + '" id="toc-sidebar">');
+        </script>
+        <noscript>
+            <aside class="reader-toc" id="toc-sidebar">
+        </noscript>
+
+            <h3 class="toc-paper-title">{{ paper.title }}</h3>
             <nav class="toc-nav">
-                <h3 class="toc-paper-title">{{ paper.title }}</h3>
                 <ul class="toc-list">
                     {% for section in paper.sections %}
                     {% if not section.hidden_in_focus_mode or section.title == 'Abstract' %}
@@ -92,7 +104,8 @@
                     <section id="{{ section.id }}"
                         class="paper-section{% if section.title == 'Abstract' %} paper-abstract{% endif %}"
                         data-level="{{ section.data_level }}"
-                        data-words="{{ section.word_count }}">
+                        data-words="{{ section.word_count }}"
+                        data-time="{{ section.estimated_reading_time | default(0) }}">
                         {% if section.title and section.title != 'Abstract' %}
                         <h2 class="section-title">
                             {% if section.number %}<span class="section-number">{{ section.number }}</span>{% endif %}
@@ -147,9 +160,9 @@
                     <div class="dock-section">
                         <span class="dock-label">Theme</span>
                         <div class="dock-btn-group">
-                            <button class="dock-btn theme-btn" data-theme="theme-light">Light</button>
-                            <button class="dock-btn theme-btn" data-theme="theme-paper">Warm</button>
-                            <button class="dock-btn theme-btn" data-theme="theme-dark">Dark</button>
+                            <button class="dock-btn theme-btn" data-theme="light">Light</button>
+                            <button class="dock-btn theme-btn" data-theme="warm">Warm</button>
+                            <button class="dock-btn theme-btn" data-theme="dark">Dark</button>
                         </div>
                     </div>
                     <div class="dock-section">

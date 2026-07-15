@@ -1,6 +1,6 @@
 /* --- READER THEMES & VARIABLES --- */
 :root,
-.theme-light {
+html[data-theme="light"] {
   --bg-primary: #FFFFFF;
   --text-primary: #111111;
   --text-secondary: #555555;
@@ -15,7 +15,7 @@
   --citation-color: #2b5585;
 }
 
-.theme-paper {
+html[data-theme="warm"] {
   /* --- WARM PAPER THEME --- */
   --bg-primary: #FBF9F6;
   --text-primary: #2C2B2A;
@@ -30,7 +30,7 @@
   --citation-color: #3b5c82;
 }
 
-.theme-dark {
+html[data-theme="dark"] {
   /* Editorial Dark Mode */
   --bg-primary: #151515;
   --text-primary: #E8E8E8;
@@ -64,6 +64,18 @@ body.resizing .reading-dock {
 }
 
 /* --- SURFACE CONTROLS (GLOBAL UI) --- */
+@keyframes initialHint {
+
+  0%,
+  80% {
+    opacity: 0.7;
+  }
+
+  100% {
+    opacity: 0.22;
+  }
+}
+
 .surface-control {
   width: 40px;
   height: 40px;
@@ -75,10 +87,11 @@ body.resizing .reading-dock {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   opacity: 0.22;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   padding: 0;
+  animation: initialHint 5s ease-in-out forwards;
 }
 
 .surface-control:hover {
@@ -134,21 +147,34 @@ body.resizing .reading-dock {
 
 /* Collapsed State */
 .reader-toc.collapsed {
-  width: 72px;
+  width: 0;
+  border-right-color: transparent;
+  pointer-events: none;
 }
 
-.toc-header {
-  padding: var(--sp-2) var(--sp-3);
+/* Floating Left Controls */
+.reader-controls-left {
+  position: fixed;
+  top: 16px;
+  left: 16px;
   display: flex;
-  justify-content: flex-end;
-  position: sticky;
-  top: 0;
-  background-color: var(--toc-bg);
-  z-index: 2;
+  flex-direction: row;
+  gap: 16px;
+  z-index: 100;
 }
 
-.reader-toc.collapsed .toc-header {
+.back-home-btn {
+  display: flex;
+  align-items: center;
   justify-content: center;
+  padding: 8px;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.back-home-btn svg {
+  width: 20px;
+  height: 20px;
 }
 
 /* TOC Toggle button uses .surface-control now */
@@ -163,6 +189,7 @@ body.resizing .reading-dock {
   scrollbar-width: none;
   padding: 0;
 }
+
 .toc-nav::-webkit-scrollbar {
   display: none;
 }
@@ -173,10 +200,14 @@ body.resizing .reading-dock {
   font-weight: 600;
   line-height: 1.3;
   padding: var(--sp-1) var(--sp-3) var(--sp-3);
-  margin-bottom: var(--sp-2);
+  margin-bottom: 0;
   border-bottom: 1px solid var(--border-color);
   color: var(--text-primary);
   transition: opacity 0.3s;
+  padding-top: calc(16px + 40px + var(--sp-2));
+  /* Space for floating controls */
+  background-color: var(--toc-bg);
+  /* Match sidebar background */
 }
 
 .reader-toc.collapsed .toc-paper-title {
@@ -201,6 +232,7 @@ body.resizing .reading-dock {
   text-decoration: none;
   transition: all 0.2s;
   position: relative;
+  cursor: pointer;
 }
 
 .toc-link:hover {
@@ -299,7 +331,7 @@ body.resizing .reading-dock {
 }
 
 /* Ensure empty gutters for sections without children so text perfectly aligns */
-.toc-link > :first-child:not(.toc-expand-btn) {
+.toc-link> :first-child:not(.toc-expand-btn) {
   margin-left: calc(24px + 0.25rem);
 }
 
@@ -342,7 +374,8 @@ body.resizing .reading-dock {
 
 /* --- TYPOGRAPHY & SECTIONS --- */
 .paper-head {
-  margin-top: 48px;
+  margin-top: 20px;
+  /* 48px margin + 48px padding = 96px total distance from top on all screens */
   margin-bottom: 64px;
   text-align: left;
 }
@@ -422,6 +455,9 @@ body.resizing .reading-dock {
   font-size: var(--reading-font-size);
   line-height: 1.8;
   color: var(--text-primary);
+  text-align: justify;
+  /* Fixes the optical illusion of text being shifted left */
+  hyphens: auto;
 }
 
 .section-content p {
@@ -998,7 +1034,7 @@ body.resizing .reading-dock {
   top: 16px;
   right: 16px;
   display: flex;
-  gap: 12px;
+  gap: 16px;
   align-items: flex-start;
   justify-content: flex-end;
   z-index: 60;
@@ -1026,15 +1062,15 @@ body.resizing .reading-dock {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 16px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   z-index: 100;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.theme-dark .reading-dock-menu {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+html[data-theme="dark"] .reading-dock-menu {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .reading-dock-menu.hidden {
@@ -1107,7 +1143,7 @@ body.resizing .reading-dock {
   width: 320px;
   background-color: var(--bg-primary);
   border-left: 1px solid var(--border-color);
-  box-shadow: -4px 0 16px rgba(0,0,0,0.05);
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.05);
   z-index: 50;
   transform: translateX(100%);
   transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
@@ -1115,8 +1151,8 @@ body.resizing .reading-dock {
   flex-direction: column;
 }
 
-.theme-dark .visuals-drawer {
-  box-shadow: -4px 0 16px rgba(0,0,0,0.3);
+html[data-theme="dark"] .visuals-drawer {
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.3);
 }
 
 .visuals-drawer.open {
@@ -1311,11 +1347,13 @@ body.resizing .reading-dock {
 
 /* Focus Mode Global Overrides */
 html.focus-fullscreen {
-  scrollbar-width: none; /* Firefox */
+  scrollbar-width: none;
+  /* Firefox */
 }
 
 html.focus-fullscreen ::-webkit-scrollbar {
-  display: none; /* Chrome/Safari */
+  display: none;
+  /* Chrome/Safari */
 }
 
 body.focus-mode .reading-dock,
@@ -1334,5 +1372,3 @@ body.focus-mode .paper-container {
 body.focus-mode .reader-content {
   padding: var(--sp-10) var(--sp-6) var(--sp-16);
 }
-
-

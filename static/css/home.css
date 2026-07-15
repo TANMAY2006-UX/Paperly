@@ -26,7 +26,7 @@
   --transition-standard: 400ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-[data-theme="dark"] {
+html[data-theme="dark"] {
   --bg-primary: #111111;
   --text-primary: #F4F4F2;
   --text-secondary: #B0B0B0;
@@ -37,11 +37,31 @@
   --splash-bg: #111111;
 }
 
+html[data-theme="warm"] {
+  --bg-primary: #FBF9F6;
+  --text-primary: #2C2B2A;
+  --text-secondary: #74716d;
+  --border-color: #EBE6E0;
+  --card-bg: #F8F6F2;
+  --hover-bg: #F2EFEA;
+  --skeleton-color: #EBE6E0;
+  --splash-bg: #FBF9F6;
+}
+
 /* --- Reset & Base Styles --- */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+html {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-y: none;
+}
+html::-webkit-scrollbar {
+  display: none;
 }
 
 body {
@@ -53,6 +73,12 @@ body {
   -moz-osx-font-smoothing: grayscale;
   transition: background-color var(--transition-standard), color var(--transition-standard);
   overflow-x: hidden;
+  overscroll-behavior-y: none;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+body::-webkit-scrollbar {
+  display: none;
 }
 
 a {
@@ -66,6 +92,7 @@ button {
   cursor: pointer;
   color: inherit;
   font-family: inherit;
+  user-select: none;
 }
 
 /* --- SPLASH SCREEN --- */
@@ -163,6 +190,8 @@ button {
   font-size: 16px;
   letter-spacing: 0.15em;
   color: var(--text-primary);
+  user-select: none;
+  cursor: pointer;
 }
 
 .header-icons {
@@ -197,6 +226,7 @@ button {
   text-align: center;
   margin-top: var(--sp-6);
   margin-bottom: var(--sp-6);
+  transition: opacity 350ms cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 
 .hero-title {
@@ -271,11 +301,34 @@ button {
   width: 20px;
   height: 20px;
   color: var(--text-secondary);
-  transition: color var(--transition-standard);
+  transition: color var(--transition-standard), opacity var(--transition-standard);
 }
 
 .search-bar:focus-within .arrow-icon {
   color: var(--text-primary);
+}
+
+.clear-btn {
+  display: none;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 20px;
+  line-height: 1;
+  transition: color var(--transition-standard);
+  user-select: none;
+}
+.clear-btn:hover {
+  color: var(--text-primary);
+}
+
+body.is-searching .arrow-icon {
+  display: none;
+}
+body.is-searching .clear-btn {
+  display: flex;
 }
 
 .search-hint {
@@ -326,6 +379,8 @@ button {
   display: flex;
   gap: var(--sp-2);
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
   scrollbar-width: none;
   padding: var(--sp-1) 0;
   scroll-behavior: smooth;
@@ -407,15 +462,22 @@ button {
   flex-direction: column;
   align-items: flex-start;
   transition: transform var(--transition-standard), box-shadow var(--transition-standard), border-color var(--transition-standard), background-color var(--transition-standard);
+  cursor: pointer;
+  user-select: none;
 }
 
-.category-card:hover {
+.category-card:hover, .category-card.active {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(0,0,0,0.04);
   border-color: var(--text-primary);
 }
 
-[data-theme="dark"] .category-card:hover {
+.category-card.active {
+  background-color: var(--hover-bg);
+}
+
+[data-theme="dark"] .category-card:hover,
+[data-theme="dark"] .category-card.active {
   box-shadow: 0 8px 24px rgba(0,0,0,0.2);
 }
 
@@ -443,12 +505,24 @@ button {
 
 /* --- PAPERS SECTION --- */
 .papers-section {
-  margin-bottom: var(--sp-10);
+  margin-bottom: var(--sp-6);
 }
 
 .papers-list {
   display: flex;
   flex-direction: column;
+}
+
+.empty-state-message {
+  padding: var(--sp-6) var(--sp-2);
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  color: var(--text-secondary);
+  font-size: 16px;
+  background: var(--card-bg);
+  border-radius: 8px;
+  border: 1px dashed var(--border-color);
+  margin-top: var(--sp-2);
 }
 
 .paper-row {
@@ -459,6 +533,7 @@ button {
   border-radius: 8px;
   border-bottom: 1px solid var(--border-color);
   transition: background-color var(--transition-standard), border-color var(--transition-standard);
+  cursor: pointer;
 }
 
 .paper-row:last-child {
@@ -529,8 +604,8 @@ button {
 /* --- QUOTE SECTION --- */
 .quote-section {
   text-align: center;
-  margin-bottom: var(--sp-10);
-  padding: var(--sp-4) 0;
+  margin-bottom: var(--sp-6);
+  padding: var(--sp-2) 0;
 }
 
 .quote-container {
@@ -547,6 +622,12 @@ button {
   color: var(--text-secondary);
   line-height: 0.8;
   margin-top: 4px;
+}
+
+.quote-mark-end {
+  align-self: flex-end;
+  margin-top: 0;
+  margin-bottom: var(--sp-4);
 }
 
 .quote-content {
@@ -572,6 +653,7 @@ button {
   font-size: 14px;
   color: var(--text-secondary);
   font-weight: 500;
+  text-align: right;
 }
 
 .quote-dots {
@@ -599,7 +681,7 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--sp-8) 0 var(--sp-10) 0;
+  padding: var(--sp-4) 0 var(--sp-6) 0;
   border-top: 1px solid var(--border-color);
   text-align: center;
 }
@@ -683,3 +765,148 @@ button {
   height: 1.2em;
   width: 60%;
 }
+ 
+ /* --- EDITORIAL SEARCH RESULTS --- */
+/* --- THE ZENITH TRANSITION --- */
+body.is-searching {
+  /* Scroll locking is now handled robustly via JS fixed positioning */
+}
+
+/* The Search Bar glides up seamlessly */
+.search-section {
+  position: relative;
+  z-index: 100;
+  transition: transform 350ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+/* The Background evaporates */
+body.is-searching .hero,
+body.is-searching .categories-section,
+body.is-searching .papers-section,
+body.is-searching .quote-section,
+body.is-searching .footer {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.is-searching .search-hint {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.categories-section,
+.papers-section,
+.search-hint {
+  transition: opacity 350ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+
+/* --- EDITORIAL SEARCH RESULTS --- */
+#editorial-search-results {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 640px;
+  max-height: calc(100dvh - 200px);
+  padding-bottom: var(--sp-4);
+  overflow-y: auto;
+  margin: var(--sp-4) auto 0;
+  text-align: left;
+  z-index: 1000;
+  scrollbar-width: none;
+}
+
+#editorial-search-results::-webkit-scrollbar {
+  display: none;
+}
+
+.editorial-results-count {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-primary);
+  z-index: 10;
+  /* Masks the transparent gap between the search bar and the results */
+  box-shadow: 0 -30px 0 0 var(--bg-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin-bottom: var(--sp-2);
+  padding-bottom: var(--sp-1);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.editorial-result-row {
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-2) var(--sp-3);
+  margin: 0 calc(var(--sp-3) * -1); /* Pulls it out so text aligns with the search bar */
+  border-radius: 6px;
+  text-decoration: none;
+  transition: background-color 150ms ease;
+}
+
+.editorial-result-row.is-selected {
+  background-color: var(--hover-bg);
+}
+
+/* Match Highlighting */
+.highlight-match {
+  background-color: rgba(250, 204, 21, 0.4);
+  border-radius: 2px;
+  padding: 0 2px;
+  text-decoration: none;
+}
+
+[data-theme="dark"] .highlight-match {
+  background-color: rgba(250, 204, 21, 0.2);
+  color: inherit;
+}
+
+.editorial-result-title {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.editorial-result-meta {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.editorial-empty-state {
+  padding: var(--sp-6) 0;
+  text-align: center;
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 18px;
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.editorial-view-all {
+  display: block;
+  padding: var(--sp-3) 0;
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-decoration: underline;
+  transition: color 150ms ease;
+}
+.editorial-view-all:hover {
+  color: var(--text-primary);
+}
+/* --- PAGE TRANSITION --- */
+body.page-transitioning {
+  opacity: 0 !important;
+  transition: opacity 400ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+  pointer-events: none;
+}
+
